@@ -87,6 +87,22 @@ Format:
 - Why deferred: foundation first. Stan is the POC.
 - Trigger: kernel + cell library v1 are stable; ready to migrate production agents.
 
+**Purge agent data on `delete agent`** *(2026-05-17)*
+- Why deferred: v0.1 cells write no persistent state. `delete agent` only removes the manifest + persona.
+- Trigger: the `memory` cell starts writing to `data/<namespace>/` (or a namespaced DB schema). Adds a `--purge-data` flag and a confirmation step.
+
+**Hot-unregister an agent from a running kernel** *(2026-05-17)*
+- Why deferred: `agentos run` is a foreground process; restart works fine for dev.
+- Trigger: a production agent running as a daemon needs to be removed without a restart. Adds a kernel route like `DELETE /agents/<name>` or a SIGHUP handler.
+
+**`agentos stop <name>` + daemon mode** *(2026-05-17)*
+- Why deferred: foreground-only is the simplest UX for MVP. Use `Ctrl+C`.
+- Trigger: running multiple agents on one host, or running unattended.
+
+**Bulk delete / wildcard delete** *(2026-05-17)*
+- Why deferred: not yet enough churn to warrant it. `delete agent stan && delete agent stan2` is fine for now.
+- Trigger: Mario's build-and-destroy iteration speed needs `delete agent stan*` or `delete agent --all-prefix=test_`.
+
 ---
 
 *Add new entries at the bottom of the current phase block. When an entry ships, delete it and note the commit in the changelog.*

@@ -1,0 +1,8 @@
+name: __smoke
+version: 0.0.1
+namespace: __smoke
+persona: ./personas/__smoke.yaml
+cells: []
+tools: []
+hooks: {}
+model: {provider: ollama, name: ollama/llama3.1:8b}

@@ -1,0 +1,8 @@
+name: _inproc_smoke
+version: 0.0.1
+namespace: _inproc_smoke
+persona: ./personas/_inproc_smoke.yaml
+cells: []
+tools: []
+hooks: {}
+model: {provider: ollama, name: ollama/llama3.1:8b}

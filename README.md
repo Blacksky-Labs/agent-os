@@ -29,8 +29,8 @@ pip install -e .
 # 3. Scaffold a new agent
 agentos new agent hello
 
-# 4. Run it
-agentos run hello
+# 4. Start it (`run` is also accepted as an alias)
+agentos start hello
 
 # 5. In another terminal, chat with it
 curl -X POST http://localhost:8000/chat \
