@@ -57,12 +57,10 @@ retrieval = [
 [project.scripts]
 agentos = "agentos.cli:app"
 
-[tool.setuptools]
-package-dir = { "agentos" = "core" }
-
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["core*", "cells*", "tools*", "hooks*"]
+include = ["agentos*", "cells*", "tools*", "hooks*"]
+exclude = ["tests*", "templates*", "venv*", "manifests*", "personas*"]
 
 [tool.ruff]
 line-length = 100

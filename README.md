@@ -64,7 +64,7 @@ Six terms, defined once in [SPEC.md §1](./SPEC.md):
 agentOS/
 ├── SPEC.md                       # v0.1 specification
 ├── LESSONS.md                    # citations from Maurice & Judy that justify the spec
-├── core/                         # kernel
+├── agentos/                      # kernel (Python package)
 ├── cells/                        # cell library v1
 │   ├── mode_control/
 │   ├── memory/

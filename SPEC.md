@@ -453,7 +453,7 @@ agentOS/
 ├── README.md                     # how to run
 ├── pyproject.toml                # package metadata
 │
-├── core/                         # kernel
+├── agentos/                      # kernel (Python package: `agentos`)
 │   ├── __init__.py
 │   ├── context.py                # AgentContext dataclass
 │   ├── pipeline.py               # cell pipeline executor
@@ -461,6 +461,7 @@ agentOS/
 │   ├── config.py                 # manifest loader & validator
 │   ├── hooks.py                  # hook dispatcher
 │   ├── observability.py          # structured logging + metrics
+│   ├── cli.py                    # `agentos` command-line entry point
 │   └── main.py                   # FastAPI entry, /chat endpoint
 │
 ├── cells/                        # cell library v1
