@@ -1,0 +1,18 @@
+# AgentOS Tool Registry
+#
+# Format:
+#   tools:
+#     <kebab-name>:
+#       versions:
+#         - version: "<semver>"
+#           path: "<python.module.path>"
+#           description: "<one-line, LLM-readable>"
+#           parameters: "<json-schema-file-or-inline>"
+#
+# Rules:
+#   - Tools are referenced by manifests; the LLM sees `name`, `description`,
+#     and `parameters` at inference time.
+#   - Tools execute inside the llm-interface cell's tool-use loop.
+#   - Tools never call cells; cells never call tools.
+
+tools: {}

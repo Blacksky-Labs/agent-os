@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env
+
+# Environment files (keep .env.example)
+.env.*
+!.env.example
+
+# Pytest / mypy / ruff
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Agent runtime data (per-namespace; never committed)
+data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+chroma_db/
+models/
+
+# Logs
+*.log
+logs/
+
+# Local manifests created by `agentos new agent` for experimentation
+# (real manifests are committed; uncomment if you want them ignored)
+# manifests/_local_*.yaml

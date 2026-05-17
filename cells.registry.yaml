@@ -1,0 +1,45 @@
+# AgentOS Cell Registry
+#
+# Format:
+#   cells:
+#     <kebab-name>:
+#       versions:
+#         - version: "<semver>"
+#           path: "<python.module.path>"
+#
+# Rules:
+#   - kebab-case names match what manifests reference.
+#   - Python module paths use snake_case.
+#   - Multiple versions of the same cell may be registered side by side; a
+#     manifest may pin any version that satisfies its constraint.
+
+cells:
+  mode-control:
+    versions:
+      - version: "1.0.0"
+        path: "cells.mode_control.cell"
+
+  memory:
+    versions:
+      - version: "1.0.0"
+        path: "cells.memory.cell"
+
+  ingestion:
+    versions:
+      - version: "1.0.0"
+        path: "cells.ingestion.cell"
+
+  retrieval:
+    versions:
+      - version: "1.0.0"
+        path: "cells.retrieval.cell"
+
+  context-builder:
+    versions:
+      - version: "1.0.0"
+        path: "cells.context_builder.cell"
+
+  llm-interface:
+    versions:
+      - version: "1.0.0"
+        path: "cells.llm_interface.cell"
