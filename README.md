@@ -33,7 +33,7 @@ agentos new agent hello
 agentos start hello
 
 # 5. In another terminal, chat with it
-curl -X POST http://localhost:8000/chat \
+curl -X POST http://localhost:7777/chat \
   -H "Content-Type: application/json" \
   -d '{
     "agent_name": "hello",

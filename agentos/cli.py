@@ -246,7 +246,7 @@ def start(
         os.getenv("AGENTOS_HOST", "127.0.0.1"), help="Bind host"
     ),
     port: int = typer.Option(
-        int(os.getenv("AGENTOS_PORT", "8000")), help="Bind port"
+        int(os.getenv("AGENTOS_PORT", "7777")), help="Bind port"
     ),
     reload: bool = typer.Option(
         False, "--reload", help="Auto-reload on code changes (dev only)"
@@ -399,7 +399,7 @@ def rebuild(
         os.getenv("AGENTOS_HOST", "127.0.0.1"), help="Bind host"
     ),
     port: int = typer.Option(
-        int(os.getenv("AGENTOS_PORT", "8000")), help="Bind port"
+        int(os.getenv("AGENTOS_PORT", "7777")), help="Bind port"
     ),
     reload: bool = typer.Option(
         False, "--reload", help="Auto-reload on code changes (dev only)"
@@ -642,8 +642,8 @@ def new_agent(
             f"  manifests/{name}.yaml\n"
             f"  personas/{name}.yaml\n\n"
             f"[bold]Next:[/]\n"
-            f"  agentos run {name}\n\n"
-            f"  curl -X POST http://127.0.0.1:8000/chat \\\n"
+            f"  agentos start {name}\n\n"
+            f"  curl -X POST http://127.0.0.1:7777/chat \\\n"
             f"    -H 'Content-Type: application/json' \\\n"
             f"    -d '{{\"agent_name\":\"{name}\","
             f"\"user_message\":\"ping\","
@@ -857,7 +857,7 @@ def run(
         os.getenv("AGENTOS_HOST", "127.0.0.1"), help="Bind host"
     ),
     port: int = typer.Option(
-        int(os.getenv("AGENTOS_PORT", "8000")), help="Bind port"
+        int(os.getenv("AGENTOS_PORT", "7777")), help="Bind port"
     ),
     reload: bool = typer.Option(
         False, "--reload", help="Auto-reload on code changes (dev only)"
