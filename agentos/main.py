@@ -82,6 +82,7 @@ class ChatResponse(BaseModel):
     namespace: str
     cell_timings: dict
     cell_errors: dict
+    usage: dict | None = None       # populated by llm-interface (token counts)
 
 
 # --- Helpers ---
@@ -145,4 +146,5 @@ async def chat(req: ChatRequest):
         namespace=context.namespace,
         cell_timings=context.cell_timings,
         cell_errors=context.cell_errors,
+        usage=context.meta.get("last_usage"),
     )
