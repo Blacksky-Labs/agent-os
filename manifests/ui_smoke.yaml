@@ -1,0 +1,7 @@
+model:
+  name: ollama/llama3:latest
+  provider: ollama
+name: ui_smoke
+namespace: ui_smoke
+persona: ./personas/ui_smoke.yaml
+version: 0.0.1

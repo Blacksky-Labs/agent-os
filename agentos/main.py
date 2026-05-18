@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from agentos.config import ManifestError, load_manifest
@@ -21,6 +22,7 @@ from agentos.hooks import HookDispatcher
 from agentos.observability import log_event
 from agentos.pipeline import Pipeline
 from agentos.registry import Registry
+from agentos.ui import INDEX_HTML
 
 
 # --- Per-process caches (so we don't reload manifests / cells per request) ---
@@ -110,6 +112,44 @@ def _get_pipeline(agent_name: str) -> tuple[Pipeline, HookDispatcher, dict]:
 
 
 # --- Routes ---
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    """Serve the local testing UI."""
+    return HTMLResponse(content=INDEX_HTML)
+
+
+@app.get("/agents")
+async def list_agents():
+    """List scaffolded agents (everything in manifests/*.yaml).
+
+    For each agent, returns name + display_name (from persona) + provider
+    + model so the UI can render a useful picker.
+    """
+    if _repo_root is None:
+        return {"agents": []}
+    out: list[dict] = []
+    manifests_dir = _repo_root / "manifests"
+    if not manifests_dir.exists():
+        return {"agents": []}
+    for path in sorted(manifests_dir.glob("*.yaml")):
+        name = path.stem
+        entry: dict = {"name": name}
+        try:
+            m = load_manifest(name, repo_root=_repo_root)
+            entry["display_name"] = (
+                m.get("_persona_data", {}).get("display_name") or name
+            )
+            model = m.get("model", {}) or {}
+            entry["provider"] = model.get("provider")
+            entry["model"] = model.get("name")
+        except ManifestError:
+            # Broken manifest still shows up by name; user can fix it.
+            entry["display_name"] = name
+            entry["error"] = "manifest invalid"
+        out.append(entry)
+    return {"agents": out}
+
 
 @app.get("/health")
 async def health():

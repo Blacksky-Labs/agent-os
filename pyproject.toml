@@ -29,6 +29,8 @@ dependencies = [
     # CLI
     "typer>=0.12",
     "rich>=13.7",
+    # LLM (used by the v1.0.0 llm-interface cell)
+    "litellm>=1.35",
     # Misc
     "python-dotenv>=1.0",
 ]
@@ -40,11 +42,8 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.10",
 ]
-# Pulled in by individual cells/tools when they need them — kept out of the
-# kernel install footprint so a minimal agentOS is small.
-llm = [
-    "litellm>=1.35",
-]
+# Pulled in by individual cells when they need them — kept out of the
+# base install footprint until those cells are real.
 memory = [
     "sqlalchemy>=2.0",
     "redis>=5.0",
