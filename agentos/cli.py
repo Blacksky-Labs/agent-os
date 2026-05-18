@@ -845,9 +845,24 @@ def _build_manifest(
         "persona": persona_ref,
         "cells": cells_block,
         "tools": [],
-        "hooks": {},
+        "hooks": _default_hooks(cells),
         "model": model_block,
     }
+
+
+def _default_hooks(cells: list[str]) -> dict:
+    """Hook subscriptions wired by default for a new agent.
+
+    Currently: if the ``memory`` cell is included, auto-subscribe to the
+    ``memory_persist`` after_turn handler so user + assistant turns are
+    saved to ``data/<namespace>/memory.db`` automatically.
+    """
+    hooks: dict = {}
+    if "memory" in cells:
+        hooks["after_turn"] = [
+            {"handler": "memory_persist", "config": {}}
+        ]
+    return hooks
 
 
 @app.command()
