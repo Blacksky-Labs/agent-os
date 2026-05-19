@@ -19,7 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from cells.retrieval.embed import embed_texts
-from cells.retrieval.store import add_chunks, chunk_id, count, open_collection
+from cells.retrieval.store import add_chunks, chunk_id, count, open_collection, query
 
 
 SUPPORTED_EXTENSIONS: frozenset[str] = frozenset({".md", ".txt", ".markdown"})
@@ -169,6 +169,20 @@ async def ingest_path(
         total_chunks += len(chunks)
 
     final_count = await count(collection)
+
+    # Warm-up: force the HNSW index to materialize on disk before this
+    # process exits. Without this, a separate reader process (the
+    # FastAPI server) can hit "Error creating hnsw segment reader:
+    # Nothing found on disk" on first query — especially when the
+    # corpus has only a handful of chunks.
+    if total_chunks > 0 and embeddings:
+        try:
+            await query(collection, query_embedding=embeddings[-1], top_k=1)
+        except Exception:
+            # Warm-up failure is non-fatal — the data is still in SQLite
+            # and the next query attempt will trigger the build.
+            pass
+
     return {
         "files": len(files),
         "chunks": total_chunks,

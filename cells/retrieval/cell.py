@@ -50,11 +50,7 @@ class Cell:
         self.top_k: int = int(self.config.get("top_k", 5))
         self.min_score: float = float(self.config.get("min_score", 0.0))
 
-        self._collection: Any | None = None
-        self._inited_for_ns: str | None = None
-
     def init(self, config: dict) -> None:
-        # Lazy: namespace isn't known at init() time.
         pass
 
     async def execute(self, context: AgentContext) -> AgentContext:
@@ -64,12 +60,15 @@ class Cell:
             return context
 
         try:
-            if self._collection is None or self._inited_for_ns != context.namespace:
-                self._collection = await open_collection(context.namespace)
-                self._inited_for_ns = context.namespace
+            # Re-open every turn — the corpus may have been mutated by an
+            # `agentos ingest` from another process since the last turn.
+            # Caching the Collection across turns risks pointing at stale
+            # HNSW segment ids → "Nothing found on disk" when a cross-process
+            # write rewrote the index. Chroma's get_or_create is cheap.
+            collection = await open_collection(context.namespace)
 
             # If the corpus is empty, no point embedding the query.
-            if await count(self._collection) == 0:
+            if await count(collection) == 0:
                 return context
 
             query_vec = await embed_one(
@@ -79,7 +78,7 @@ class Cell:
             )
 
             result = await query(
-                self._collection,
+                collection,
                 query_embedding=query_vec,
                 top_k=self.top_k,
             )
