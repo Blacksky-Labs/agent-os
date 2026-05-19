@@ -36,7 +36,7 @@ cells:
 
   context-builder:
     versions:
-      - version: "1.1.0"
+      - version: "1.2.0"
         path: "cells.context_builder.cell"
 
   llm-interface:

@@ -31,6 +31,8 @@ dependencies = [
     "rich>=13.7",
     # LLM (used by the v1.0.0 llm-interface cell)
     "litellm>=1.35",
+    # Retrieval (used by the v1.0.0 retrieval cell)
+    "chromadb>=0.5",
     # Misc
     "python-dotenv>=1.0",
 ]
@@ -47,10 +49,6 @@ dev = [
 memory = [
     "sqlalchemy>=2.0",
     "redis>=5.0",
-]
-retrieval = [
-    "chromadb>=0.5",
-    "sentence-transformers>=2.7",
 ]
 
 [project.scripts]

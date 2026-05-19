@@ -1,19 +1,24 @@
-"""context-builder cell — v1.1.0.
+"""context-builder cell — v1.2.0.
 
-Assembles the LLM prompt from the persona, mode constraints, conversation
-history, and the current user message. Pure assembly — no I/O, no LLM
-calls, no side effects.
+Assembles the LLM prompt from the persona, mode constraints, retrieved
+corpus chunks, conversation history, and the current user message.
+Pure assembly — no I/O, no LLM calls, no side effects.
+
+v1.2.0 vs v1.1.0:
+    - System prompt now includes a "Reference material" section with
+      retrieved corpus chunks when the retrieval cell populated
+      ``context.retrieved_chunks``.
+    - Chunks render with source attribution and similarity score so the
+      LLM can cite them by file.
+    - Closing anchor extended to ask the model to cite source filenames
+      when it uses reference material.
 
 v1.1.0 vs v1.0.0:
     - System prompt uses the full persona schema (identity, mission,
       voice, refusals, escalations) — not just ``mission``.
-    - Pulls mode constraints from ``context.mode_constraints`` (set
-      upstream by the mode-control cell).
-    - Threads ``context.conversation_history`` between system and user
-      messages so the LLM has prior-turn context once the memory cell
-      starts populating it.
-    - Adds a closing "stay in character" anchor to reduce persona drift
-      across turns.
+    - Pulls mode constraints from ``context.mode_constraints``.
+    - Threads ``context.conversation_history`` between system and user.
+    - Anti-drift "stay in character" anchor.
 
 See SPEC.md §5 (cell contract) and §8 (persona format).
 """
@@ -25,7 +30,7 @@ from agentos.context import AgentContext
 
 class Cell:
     name = "context-builder"
-    version = "1.1.0"
+    version = "1.2.0"
 
     def __init__(self, config: dict):
         self.config = config or {}
@@ -38,11 +43,12 @@ class Cell:
             persona=context.persona or {},
             agent_name=context.agent_name,
             mode_constraints=context.mode_constraints or {},
+            retrieved_chunks=context.retrieved_chunks or [],
         )
 
         messages: list[dict] = [{"role": "system", "content": system_content}]
 
-        # Prior turns — memory cell populates these; empty until then.
+        # Prior turns — memory cell populates these.
         for turn in context.conversation_history or []:
             role = turn.get("role")
             content = turn.get("content")
@@ -73,8 +79,9 @@ def _build_system_prompt(
     persona: dict,
     agent_name: str,
     mode_constraints: dict,
+    retrieved_chunks: list[dict],
 ) -> str:
-    """Render the persona + mode constraints into a system-prompt string."""
+    """Render persona + mode constraints + retrieved chunks into a system prompt."""
     sections: list[str] = []
 
     # --- 1. Identity ---
@@ -122,7 +129,18 @@ def _build_system_prompt(
     if fmt_lines:
         sections.append("Format: " + " ".join(fmt_lines))
 
-    # --- 5. Refusal rules ---
+    # --- 5. Reference material (retrieved chunks) ---
+    if retrieved_chunks:
+        ref_lines = ["Reference material from the corpus (cite sources when you use them):"]
+        for c in retrieved_chunks:
+            source = c.get("source") or "unknown"
+            short = _short_source(source)
+            sim = c.get("similarity")
+            sim_str = f", similarity {sim:.2f}" if isinstance(sim, (int, float)) else ""
+            ref_lines.append(f"\n[Source: {short}{sim_str}]\n{c.get('content', '').strip()}")
+        sections.append("\n".join(ref_lines))
+
+    # --- 6. Refusal rules ---
     refusal_lines: list[str] = []
     for r in (persona.get("refusals") or []):
         topic = r.get("topic")
@@ -134,10 +152,7 @@ def _build_system_prompt(
             "Refusal rules:\n" + "\n".join(f"- {line}" for line in refusal_lines)
         )
 
-    # --- 6. Escalation triggers ---
-    # These usually fire from hooks (outside the LLM). Surfacing them as
-    # guidance in the system prompt helps the model flag the condition in
-    # its reply text when it occurs.
+    # --- 7. Escalation triggers ---
     escalation_lines: list[str] = []
     for e in (persona.get("escalations") or []):
         condition = e.get("condition")
@@ -150,10 +165,24 @@ def _build_system_prompt(
             + "\n".join(f"- {line}" for line in escalation_lines)
         )
 
-    # --- 7. Anti-drift anchor ---
-    sections.append(
+    # --- 8. Anti-drift anchor (extended for reference material) ---
+    anchor = (
         "Stay in character. Do not break the fourth wall or invent a "
         "different persona unless the user directly asks for one."
     )
+    if retrieved_chunks:
+        anchor += (
+            " When you use any reference material, cite the source "
+            "filename inline. If the corpus doesn't cover a question, "
+            "say so plainly rather than inventing facts."
+        )
+    sections.append(anchor)
 
     return "\n\n".join(sections)
+
+
+def _short_source(source: str) -> str:
+    """Trim a full path to just the filename for compact citation."""
+    if "/" in source:
+        return source.rsplit("/", 1)[-1]
+    return source

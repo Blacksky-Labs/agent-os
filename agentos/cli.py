@@ -11,9 +11,11 @@ See SPEC.md and future-needs.md for what's deferred (doctor, pull, etc.).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import shutil
+import subprocess
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -64,6 +66,7 @@ COMMAND_INDEX_AVAILABLE: list[tuple[str, str]] = [
     ("destroy AGENT",        "Wipe an agent's runtime data, keep config"),
     ("rebuild AGENT",        "destroy + start"),
     ("run AGENT",            "Alias of `start` (kept for back-compat)"),
+    ("ingest AGENT PATH",    "Load documents into an agent's retrieval corpus"),
     ("new agent [NAME]",     "Interactive scaffolder for a new agent"),
     ("delete agent [NAME]",  "Delete a scaffolded agent (manifest + persona)"),
 ]
@@ -74,7 +77,7 @@ COMMAND_INDEX_COMING: list[tuple[str, str]] = [
     ("delete cell [NAME]",   "Delete a scaffolded cell"),
     ("delete tool [NAME]",   "Delete a scaffolded tool"),
     ("doctor [AGENT]",       "Validate manifest, Ollama daemon, env keys"),
-    ("pull MODEL",           "Pull an Ollama model"),
+    ("pull MODEL",           "Pull an Ollama model (standalone — scaffolder already auto-pulls)"),
 ]
 
 
@@ -183,6 +186,51 @@ def _format_size(bytes_: float) -> str:
             return f"{bytes_:.1f} {unit}"
         bytes_ /= 1024
     return f"{bytes_:.1f} PB"
+
+
+def _is_embedding_model(model_name: str) -> bool:
+    """Best-effort filter: Ollama embedding models have 'embed' in the name.
+
+    Matches: nomic-embed-text, mxbai-embed-large, all-minilm (embed family),
+    snowflake-arctic-embed, etc.
+    """
+    n = (model_name or "").lower()
+    return "embed" in n or "minilm" in n
+
+
+def _ollama_installed() -> bool:
+    """Is the `ollama` CLI on PATH?"""
+    return shutil.which("ollama") is not None
+
+
+def _ollama_pull(model: str) -> bool:
+    """Shell out to `ollama pull <model>`. Returns True on success.
+
+    Ollama prints its own progress to stdout, which we let through to the
+    user's terminal. We just wait for the process to exit.
+    """
+    if not _ollama_installed():
+        console.print(
+            "[red]The `ollama` CLI isn't on your PATH.[/]\n"
+            "  Install Ollama from https://ollama.com, then re-run."
+        )
+        return False
+    console.print(f"\n[bold]Pulling {model}…[/]")
+    try:
+        result = subprocess.run(["ollama", "pull", model], check=False)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Pull cancelled.[/]")
+        return False
+    except Exception as e:
+        console.print(f"[red]Pull failed: {e}[/]")
+        return False
+    if result.returncode != 0:
+        console.print(
+            f"[red]`ollama pull {model}` exited with code {result.returncode}.[/]"
+        )
+        return False
+    console.print(f"[green]✓ {model} ready.[/]")
+    return True
 
 
 # ============================================================
@@ -430,6 +478,95 @@ def rebuild(
 
 
 # ============================================================
+# `ingest` — add documents to an agent's retrieval corpus
+# ============================================================
+
+@app.command()
+def ingest(
+    agent_name: str = typer.Argument(..., help="Agent name (must have retrieval cell)"),
+    path: str = typer.Argument(..., help="File or folder to ingest (.md, .txt, .markdown)"),
+):
+    """Load documents into an agent's per-namespace Chroma collection.
+
+    Walks ``path``, chunks each file by paragraph, embeds via the agent's
+    configured embedding model, and upserts into
+    ``data/<namespace>/chroma/``. Re-ingesting the same content is
+    idempotent (chunk ids are content-hashed).
+    """
+    repo_root = _find_repo_root()
+    os.chdir(repo_root)
+
+    try:
+        manifest = load_manifest(agent_name, repo_root=repo_root)
+    except ManifestError as e:
+        console.print(f"[red]{e}[/]")
+        raise typer.Exit(1)
+
+    # Find the retrieval cell's config in the manifest
+    retrieval_cfg: dict | None = None
+    for entry in manifest.get("cells", []) or []:
+        if entry.get("name") == "retrieval":
+            retrieval_cfg = entry.get("config", {}) or {}
+            break
+
+    if retrieval_cfg is None:
+        console.print(
+            f"[red]Agent '{agent_name}' doesn't include the retrieval cell.[/]\n"
+            f"[dim]Add it to manifests/{agent_name}.yaml or rescaffold the agent.[/]"
+        )
+        raise typer.Exit(1)
+
+    embedding_model = retrieval_cfg.get(
+        "embedding_model", "ollama/nomic-embed-text:latest"
+    )
+    embedding_api_base = retrieval_cfg.get(
+        "embedding_api_base", "http://localhost:11434"
+    )
+
+    target = Path(path).expanduser()
+    if not target.exists():
+        console.print(f"[red]Path not found: {target}[/]")
+        raise typer.Exit(1)
+
+    namespace = manifest["namespace"]
+    console.print(
+        Panel.fit(
+            f"[bold]Ingesting into {agent_name}[/]\n"
+            f"  namespace:    {namespace}\n"
+            f"  path:         {target}\n"
+            f"  embed model:  {embedding_model}\n",
+            title="agentos ingest",
+            border_style="cyan",
+        )
+    )
+
+    # Import here so the kernel doesn't pay the import cost on every CLI call
+    from cells.retrieval.ingest import ingest_path
+
+    try:
+        stats = asyncio.run(
+            ingest_path(
+                namespace=namespace,
+                path=target,
+                embedding_model=embedding_model,
+                embedding_api_base=embedding_api_base,
+                repo_root=repo_root,
+            )
+        )
+    except Exception as e:
+        console.print(f"[red]Ingest failed: {type(e).__name__}: {e}[/]")
+        raise typer.Exit(1)
+
+    console.print()
+    console.print(f"[green]✓ Ingest complete[/]")
+    console.print(f"  files scanned:    {stats.get('files', 0)}")
+    console.print(f"  chunks added:     {stats.get('chunks', 0)}")
+    console.print(f"  total in corpus:  {stats.get('total_in_collection', 0)}")
+    for err in stats.get("errors", []) or []:
+        console.print(f"  [yellow]warn:[/] {err}")
+
+
+# ============================================================
 # `new agent` — the interactive Lando-style flow
 # ============================================================
 
@@ -578,12 +715,20 @@ def new_agent(
         default_set=set(cell_choices),
     )
 
-    # --- Tools + hooks (deferred for MVP) ---
+    # --- Embedding model (only if retrieval cell is selected) ---
+    embedding_model: str | None = None
+    if "retrieval" in cells_selected:
+        embedding_model = _prompt_embedding_model()
+        if embedding_model is None:
+            # User opted to skip retrieval. Drop the cell.
+            cells_selected = [c for c in cells_selected if c != "retrieval"]
+            console.print(
+                "[dim]Retrieval cell removed from this agent's pipeline.[/]"
+            )
+
+    # --- Tools ---
     console.print(
         "\n[dim]◆ Tools: register later with `agentos new tool`.[/]"
-    )
-    console.print(
-        "[dim]◆ Hooks: subscribe later by editing the manifest.[/]"
     )
 
     # --- Write persona.yaml ---
@@ -598,12 +743,22 @@ def new_agent(
     with persona_path.open("w") as f:
         yaml.safe_dump(persona_data, f, sort_keys=False, default_flow_style=False)
 
+    # --- Per-cell config (currently only retrieval needs it) ---
+    cell_configs: dict[str, dict] = {}
+    if "retrieval" in cells_selected and embedding_model:
+        cell_configs["retrieval"] = {
+            "embedding_model": embedding_model,
+            "embedding_api_base": "http://localhost:11434",
+            "top_k": 5,
+        }
+
     # --- Write manifest.yaml ---
     manifest_data = _build_manifest(
         name=name,
         namespace=namespace,
         persona_ref=f"./personas/{name}.yaml",
         cells=cells_selected,
+        cell_configs=cell_configs,
         provider=model_provider,
         litellm_model=litellm_model,
         temperature=temperature,
@@ -761,6 +916,98 @@ def delete_agent(
 
 
 # ============================================================
+# Embedding model picker (with Ollama auto-pull)
+# ============================================================
+
+RECOMMENDED_EMBEDDING_MODEL = "nomic-embed-text"
+
+
+def _prompt_embedding_model() -> str | None:
+    """Interactive picker for an Ollama embedding model.
+
+    Returns a LiteLLM-format model string (e.g. ``ollama/nomic-embed-text:latest``)
+    or ``None`` if the user opted to skip the retrieval cell entirely.
+
+    Behavior:
+        - Pings Ollama daemon, filters models by ``_is_embedding_model``.
+        - If any embedding models are pulled → user picks from them.
+        - If none are pulled → offers to pull the recommended one via
+          ``ollama pull``, with skip / custom-string fallbacks.
+    """
+    ollama_url = "http://localhost:11434"
+    models = _list_ollama_models(ollama_url)
+
+    if models is None:
+        console.print(
+            f"\n[yellow]⚠ Ollama daemon not reachable at {ollama_url}.[/]\n"
+            "  Embeddings need the Ollama daemon. Start it with `ollama serve`."
+        )
+        return _embedding_fallback_prompt()
+
+    embedding_models = [m for m in models if _is_embedding_model(m.get("name", ""))]
+
+    if embedding_models:
+        console.print(
+            f"\n[green]✓ Found {len(embedding_models)} embedding model(s) on Ollama.[/]"
+        )
+        choices: list[str] = []
+        for m in embedding_models:
+            size = _format_size(float(m.get("size", 0)))
+            choices.append(f"{m['name']}  ({size})")
+        choices.append("(custom — paste a model string)")
+        picked = _choose_one("Embedding model", choices, default_idx=0)
+        if picked.startswith("(custom"):
+            raw = typer.prompt("\n◆ Custom embedding model string").strip()
+            return f"ollama/{raw}" if not raw.startswith("ollama/") else raw
+        model_name = picked.split("  ", 1)[0]
+        return f"ollama/{model_name}"
+
+    # No embedding models pulled — offer to pull the recommended one
+    console.print(
+        f"\n[yellow]⚠ No embedding models found on Ollama.[/]\n"
+        f"  Recommended: [bold]{RECOMMENDED_EMBEDDING_MODEL}[/] (≈261 MB, local, fast)"
+    )
+    choices = [
+        f"Pull {RECOMMENDED_EMBEDDING_MODEL} now (runs `ollama pull`)",
+        "Skip retrieval cell for this agent (you can add it later)",
+        "Paste a custom model string anyway (will fail until pulled)",
+    ]
+    picked = _choose_one("Embedding model", choices, default_idx=0)
+
+    if picked.startswith("Pull"):
+        ok = _ollama_pull(RECOMMENDED_EMBEDDING_MODEL)
+        if not ok:
+            console.print(
+                "[yellow]Falling back to skip — you can add retrieval later.[/]"
+            )
+            return None
+        return f"ollama/{RECOMMENDED_EMBEDDING_MODEL}:latest"
+
+    if picked.startswith("Skip"):
+        return None
+
+    # Custom string
+    raw = typer.prompt("\n◆ Custom embedding model string").strip()
+    return f"ollama/{raw}" if not raw.startswith("ollama/") else raw
+
+
+def _embedding_fallback_prompt() -> str | None:
+    """Embedding picker shown when the Ollama daemon isn't reachable."""
+    choices = [
+        "Skip retrieval cell for this agent (you can add it later)",
+        f"Use {RECOMMENDED_EMBEDDING_MODEL} anyway (will fail until daemon is up)",
+        "Paste a custom model string anyway",
+    ]
+    picked = _choose_one("Embedding model", choices, default_idx=0)
+    if picked.startswith("Skip"):
+        return None
+    if picked.startswith(f"Use {RECOMMENDED_EMBEDDING_MODEL}"):
+        return f"ollama/{RECOMMENDED_EMBEDDING_MODEL}:latest"
+    raw = typer.prompt("\n◆ Custom embedding model string").strip()
+    return f"ollama/{raw}" if not raw.startswith("ollama/") else raw
+
+
+# ============================================================
 # Provider knowledge (single source of truth)
 # ============================================================
 
@@ -821,13 +1068,20 @@ def _build_manifest(
     namespace: str,
     persona_ref: str,
     cells: list[str],
+    cell_configs: dict[str, dict] | None = None,
     provider: str,
     litellm_model: str,
     temperature: float,
     max_tokens: int,
     api_base: str | None,
 ) -> dict:
-    cells_block = [{"name": c, "version": "^1.0"} for c in cells]
+    cell_configs = cell_configs or {}
+    cells_block = []
+    for c in cells:
+        entry: dict = {"name": c, "version": "^1.0"}
+        if c in cell_configs:
+            entry["config"] = cell_configs[c]
+        cells_block.append(entry)
 
     model_block: dict = {
         "provider": provider,
