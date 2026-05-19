@@ -1,10 +1,13 @@
 """Minimal local chat UI for agentOS.
 
-A single self-contained HTML page served by ``GET /``. Lets a tester pick
-any scaffolded agent and chat with it via the existing ``POST /chat``
-endpoint. No framework, no build step — vanilla HTML/CSS/JS.
+A single self-contained HTML page served by ``GET /``. Lets a tester:
+    - pick any scaffolded agent
+    - chat with it via ``POST /chat``
+    - view the agent's corpus (sources + chunk counts)
+    - ingest a file/folder by path
+    - delete a source from the corpus
 
-This is testing scaffolding, not a product. Replace freely.
+No framework, no build step — vanilla HTML/CSS/JS. Replace freely.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ INDEX_HTML = """<!DOCTYPE html>
       --user-bg:   #1d2731;
       --agent-bg:  #1a1a22;
       --error:     #ff7a7a;
+      --warn:      #f4c466;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; padding: 0; }
@@ -40,7 +44,9 @@ INDEX_HTML = """<!DOCTYPE html>
       flex-direction: column;
       height: 100vh;
     }
+    button { font: inherit; cursor: pointer; }
 
+    /* --- Topbar --- */
     .topbar {
       display: flex;
       align-items: center;
@@ -69,7 +75,129 @@ INDEX_HTML = """<!DOCTYPE html>
       margin-left: auto;
       font-family: ui-monospace, "SF Mono", Menlo, monospace;
     }
+    .topbar .manage-btn {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 13px;
+    }
+    .topbar .manage-btn.open { background: var(--accent); color: #0a0a0c; border-color: var(--accent); }
 
+    /* --- Manage panel --- */
+    .manage-panel {
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      padding: 14px 20px 18px;
+      display: none;
+    }
+    .manage-panel.open { display: block; }
+    .manage-panel h3 {
+      margin: 0 0 8px 0;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+    }
+    .manage-panel .corpus-summary {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    }
+    .corpus-list {
+      list-style: none;
+      margin: 0 0 12px 0;
+      padding: 0;
+      max-height: 220px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .corpus-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .corpus-list li:last-child { border-bottom: 0; }
+    .corpus-list li:hover { background: var(--panel-2); }
+    .corpus-list .source {
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 13px;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .corpus-list .chunks {
+      color: var(--text-dim);
+      font-size: 12px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      flex-shrink: 0;
+    }
+    .corpus-list .delete-btn {
+      background: transparent;
+      color: var(--error);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 12px;
+    }
+    .corpus-list .delete-btn:hover { background: rgba(255, 122, 122, 0.1); }
+    .corpus-empty {
+      color: var(--text-dim);
+      font-style: italic;
+      font-size: 13px;
+      padding: 12px;
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    .ingest-row {
+      display: flex;
+      gap: 8px;
+    }
+    .ingest-row input {
+      flex: 1;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 13px;
+    }
+    .ingest-row input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .ingest-row button {
+      background: var(--accent);
+      color: #0a0a0c;
+      border: 0;
+      border-radius: 6px;
+      padding: 0 16px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .ingest-row button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .status-line {
+      margin-top: 8px;
+      font-size: 12px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      color: var(--text-dim);
+      min-height: 16px;
+    }
+    .status-line.ok   { color: var(--accent); }
+    .status-line.err  { color: var(--error); }
+    .status-line.warn { color: var(--warn); }
+
+    /* --- Chat --- */
     .chat {
       flex: 1;
       overflow-y: auto;
@@ -85,7 +213,6 @@ INDEX_HTML = """<!DOCTYPE html>
       align-self: center;
       margin-top: 40px;
     }
-
     .msg {
       display: flex;
       flex-direction: column;
@@ -134,10 +261,7 @@ INDEX_HTML = """<!DOCTYPE html>
       font-size: 14px;
       line-height: 1.4;
     }
-    .input textarea:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
+    .input textarea:focus { outline: none; border-color: var(--accent); }
     .input button {
       padding: 0 18px;
       background: var(--accent);
@@ -145,12 +269,8 @@ INDEX_HTML = """<!DOCTYPE html>
       border: 0;
       border-radius: 8px;
       font-weight: 600;
-      cursor: pointer;
     }
-    .input button:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+    .input button:disabled { opacity: 0.4; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -160,6 +280,20 @@ INDEX_HTML = """<!DOCTYPE html>
       <option>Loading agents…</option>
     </select>
     <span class="meta" id="agent-meta"></span>
+    <button class="manage-btn" id="manage-toggle">📁 Manage</button>
+  </div>
+
+  <div class="manage-panel" id="manage-panel">
+    <h3>Corpus for <span id="manage-agent-name">—</span></h3>
+    <div class="corpus-summary" id="corpus-summary">Loading…</div>
+    <div id="corpus-container"></div>
+
+    <h3 style="margin-top:14px;">Add a file or folder</h3>
+    <div class="ingest-row">
+      <input id="ingest-path" placeholder="Absolute path on this machine, e.g. /Users/you/Documents/notes.md">
+      <button id="ingest-btn">Ingest</button>
+    </div>
+    <div class="status-line" id="ingest-status"></div>
   </div>
 
   <div class="chat" id="chat"></div>
@@ -176,16 +310,39 @@ INDEX_HTML = """<!DOCTYPE html>
     const btn = $("send");
     const chat = $("chat");
     const metaEl = $("agent-meta");
+    const manageBtn = $("manage-toggle");
+    const managePanel = $("manage-panel");
+    const corpusContainer = $("corpus-container");
+    const corpusSummary = $("corpus-summary");
+    const manageAgentName = $("manage-agent-name");
+    const ingestInput = $("ingest-path");
+    const ingestBtn = $("ingest-btn");
+    const ingestStatus = $("ingest-status");
 
     const sessionId = `s_${Math.random().toString(36).slice(2, 14)}`;
-    let agents = {};   // {name: {display_name, provider, model}}
+    let agents = {};
 
     function escapeHtml(s) {
       return String(s)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
     }
+
+    function basename(path) {
+      if (!path) return "";
+      const parts = path.split("/");
+      return parts[parts.length - 1] || path;
+    }
+
+    function setStatus(el, text, kind) {
+      el.textContent = text;
+      el.classList.remove("ok", "err", "warn");
+      if (kind) el.classList.add(kind);
+    }
+
+    // -------------------- Chat --------------------
 
     function appendMsg(who, text, opts = {}) {
       const wrap = document.createElement("div");
@@ -299,8 +456,7 @@ INDEX_HTML = """<!DOCTYPE html>
           thinking.bubble.classList.remove("thinking");
           thinking.bubble.textContent = data.response;
         }
-        thinking.meta.textContent =
-          renderMeta(data) + `  ·  ${wall}ms wall`;
+        thinking.meta.textContent = renderMeta(data) + `  ·  ${wall}ms wall`;
       } catch (e) {
         thinking.wrap.classList.add("error");
         thinking.bubble.classList.remove("thinking");
@@ -312,11 +468,138 @@ INDEX_HTML = """<!DOCTYPE html>
       }
     }
 
-    // --- wire ---
+    // -------------------- Manage panel --------------------
+
+    function renderCorpus(data) {
+      manageAgentName.textContent = data.agent_name || sel.value || "—";
+      const sources = data.sources || [];
+      corpusSummary.textContent =
+        `namespace ${data.namespace}  ·  ${data.total_chunks} chunk(s)  ·  ${sources.length} source(s)`;
+
+      if (sources.length === 0) {
+        corpusContainer.innerHTML =
+          '<div class="corpus-empty">No documents ingested yet. Use the field below.</div>';
+        return;
+      }
+
+      const ul = document.createElement("ul");
+      ul.className = "corpus-list";
+      sources.forEach(s => {
+        const li = document.createElement("li");
+
+        const label = document.createElement("span");
+        label.className = "source";
+        label.title = s.source;
+        label.textContent = basename(s.source);
+
+        const count = document.createElement("span");
+        count.className = "chunks";
+        count.textContent = `${s.chunks} chunk${s.chunks === 1 ? "" : "s"}`;
+
+        const del = document.createElement("button");
+        del.className = "delete-btn";
+        del.textContent = "Delete";
+        del.addEventListener("click", () => deleteSource(s.source));
+
+        li.appendChild(label);
+        li.appendChild(count);
+        li.appendChild(del);
+        ul.appendChild(li);
+      });
+      corpusContainer.innerHTML = "";
+      corpusContainer.appendChild(ul);
+    }
+
+    async function loadCorpus() {
+      const agent = sel.value;
+      if (!agent) return;
+      corpusContainer.innerHTML = '<div class="corpus-empty">Loading…</div>';
+      try {
+        const r = await fetch(`/agents/${encodeURIComponent(agent)}/corpus`);
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          corpusContainer.innerHTML =
+            `<div class="corpus-empty">Could not load corpus: ${escapeHtml(err.detail || r.statusText)}</div>`;
+          corpusSummary.textContent = "";
+          return;
+        }
+        renderCorpus(await r.json());
+      } catch (e) {
+        corpusContainer.innerHTML =
+          `<div class="corpus-empty">Could not load corpus: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    async function deleteSource(source) {
+      if (!confirm(`Delete all chunks for "${basename(source)}"?\\n\\nFull path:\\n${source}`)) {
+        return;
+      }
+      const agent = sel.value;
+      const url = `/agents/${encodeURIComponent(agent)}/corpus?source=${encodeURIComponent(source)}`;
+      try {
+        const r = await fetch(url, { method: "DELETE" });
+        const data = await r.json();
+        if (!r.ok) {
+          setStatus(ingestStatus, `Delete failed: ${data.detail || r.statusText}`, "err");
+          return;
+        }
+        setStatus(ingestStatus, `Removed ${data.deleted_chunks} chunk(s) for ${basename(source)}`, "ok");
+        await loadCorpus();
+      } catch (e) {
+        setStatus(ingestStatus, `Delete failed: ${e.message}`, "err");
+      }
+    }
+
+    async function ingestPath() {
+      const path = ingestInput.value.trim();
+      if (!path) {
+        setStatus(ingestStatus, "Enter a path first.", "warn");
+        return;
+      }
+      const agent = sel.value;
+      ingestBtn.disabled = true;
+      setStatus(ingestStatus, `Ingesting ${path}… (this may take a few seconds for big files)`, "warn");
+      try {
+        const r = await fetch(`/agents/${encodeURIComponent(agent)}/ingest`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path }),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          setStatus(ingestStatus, `Ingest failed: ${data.detail || r.statusText}`, "err");
+          return;
+        }
+        const errs = (data.errors || []).length;
+        const note = errs > 0 ? `  (${errs} warning(s))` : "";
+        setStatus(
+          ingestStatus,
+          `✓ ${data.files || 0} file(s), ${data.chunks || 0} chunk(s) added, ${data.total_in_collection || 0} total${note}`,
+          "ok"
+        );
+        ingestInput.value = "";
+        await loadCorpus();
+      } catch (e) {
+        setStatus(ingestStatus, `Ingest failed: ${e.message}`, "err");
+      } finally {
+        ingestBtn.disabled = false;
+      }
+    }
+
+    function toggleManagePanel() {
+      const isOpen = managePanel.classList.toggle("open");
+      manageBtn.classList.toggle("open", isOpen);
+      if (isOpen) {
+        loadCorpus();
+        setStatus(ingestStatus, "", null);
+      }
+    }
+
+    // -------------------- Wire --------------------
     sel.addEventListener("change", () => {
       setAgentMeta();
-      // New session per agent so memory cells (when real) don't bleed.
       chat.innerHTML = "";
+      if (managePanel.classList.contains("open")) loadCorpus();
     });
     btn.addEventListener("click", send);
     inp.addEventListener("keydown", (e) => {
@@ -328,6 +611,14 @@ INDEX_HTML = """<!DOCTYPE html>
     inp.addEventListener("input", () => {
       inp.style.height = "auto";
       inp.style.height = Math.min(inp.scrollHeight, 140) + "px";
+    });
+    manageBtn.addEventListener("click", toggleManagePanel);
+    ingestBtn.addEventListener("click", ingestPath);
+    ingestInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        ingestPath();
+      }
     });
 
     loadAgents();

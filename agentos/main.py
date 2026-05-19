@@ -151,6 +151,121 @@ async def list_agents():
     return {"agents": out}
 
 
+# ----------------------------------------------------------------------
+# Corpus management — list, ingest, delete files in an agent's RAG store
+# ----------------------------------------------------------------------
+
+def _retrieval_config_for(manifest: dict) -> dict | None:
+    """Pull the retrieval cell's config block from a manifest, if present."""
+    for entry in (manifest.get("cells") or []):
+        if entry.get("name") == "retrieval":
+            return entry.get("config", {}) or {}
+    return None
+
+
+@app.get("/agents/{agent_name}/corpus")
+async def corpus_list(agent_name: str):
+    """List the sources in an agent's retrieval corpus, grouped by file."""
+    if _repo_root is None:
+        raise HTTPException(status_code=503, detail="Kernel not initialized")
+    try:
+        manifest = load_manifest(agent_name, repo_root=_repo_root)
+    except ManifestError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # Import lazily so agents that don't use retrieval don't pay the cost
+    from cells.retrieval.store import count, list_sources, open_collection
+
+    namespace = manifest["namespace"]
+    collection = await open_collection(namespace, repo_root=_repo_root)
+    sources = await list_sources(collection)
+    total = await count(collection)
+    return {
+        "agent_name": agent_name,
+        "namespace": namespace,
+        "total_chunks": total,
+        "sources": sources,
+    }
+
+
+class IngestRequest(BaseModel):
+    path: str
+
+
+@app.post("/agents/{agent_name}/ingest")
+async def corpus_ingest(agent_name: str, req: IngestRequest):
+    """Ingest a file or folder into an agent's corpus.
+
+    The path is interpreted on the *server* host (since agentOS runs
+    locally for now). For folder paths, all supported files are walked
+    recursively. Idempotent: re-ingesting the same content is a no-op.
+    """
+    if _repo_root is None:
+        raise HTTPException(status_code=503, detail="Kernel not initialized")
+    try:
+        manifest = load_manifest(agent_name, repo_root=_repo_root)
+    except ManifestError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    retrieval_cfg = _retrieval_config_for(manifest)
+    if retrieval_cfg is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Agent '{agent_name}' has no retrieval cell in its manifest",
+        )
+
+    target = Path(req.path).expanduser()
+    if not target.exists():
+        raise HTTPException(
+            status_code=400, detail=f"Path not found on server: {target}"
+        )
+
+    from cells.retrieval.ingest import ingest_path
+
+    embedding_model = retrieval_cfg.get(
+        "embedding_model", "ollama/nomic-embed-text:latest"
+    )
+    embedding_api_base = retrieval_cfg.get(
+        "embedding_api_base", "http://localhost:11434"
+    )
+
+    try:
+        stats = await ingest_path(
+            namespace=manifest["namespace"],
+            path=target,
+            embedding_model=embedding_model,
+            embedding_api_base=embedding_api_base,
+            repo_root=_repo_root,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Ingest failed: {type(e).__name__}: {e}"
+        )
+
+    return stats
+
+
+@app.delete("/agents/{agent_name}/corpus")
+async def corpus_delete_source(agent_name: str, source: str):
+    """Remove every chunk for a given source from an agent's corpus.
+
+    The ``source`` query parameter must match the metadata.source field
+    exactly (it's the full filesystem path used at ingest time).
+    """
+    if _repo_root is None:
+        raise HTTPException(status_code=503, detail="Kernel not initialized")
+    try:
+        manifest = load_manifest(agent_name, repo_root=_repo_root)
+    except ManifestError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    from cells.retrieval.store import delete_source, open_collection
+
+    collection = await open_collection(manifest["namespace"], repo_root=_repo_root)
+    deleted = await delete_source(collection, source)
+    return {"source": source, "deleted_chunks": deleted}
+
+
 @app.get("/health")
 async def health():
     return {

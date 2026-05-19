@@ -87,6 +87,28 @@ def _count_sync(collection: Any) -> int:
     return collection.count()
 
 
+def _list_sources_sync(collection: Any) -> list[dict]:
+    """Group all stored chunks by their `source` metadata."""
+    result = collection.get(include=["metadatas"])
+    counts: dict[str, int] = {}
+    for meta in (result.get("metadatas") or []):
+        src = (meta or {}).get("source", "unknown")
+        counts[src] = counts.get(src, 0) + 1
+    return [
+        {"source": src, "chunks": n}
+        for src, n in sorted(counts.items())
+    ]
+
+
+def _delete_source_sync(collection: Any, source: str) -> int:
+    """Remove every chunk whose metadata.source matches. Returns count."""
+    result = collection.get(where={"source": source})
+    ids = result.get("ids") or []
+    if ids:
+        collection.delete(ids=ids)
+    return len(ids)
+
+
 # ----------------------------------------------------------------------
 # Async surface (cells + ingest call these)
 # ----------------------------------------------------------------------
@@ -121,3 +143,16 @@ async def query(
 async def count(collection: Any) -> int:
     """How many chunks are currently in the collection."""
     return await asyncio.to_thread(_count_sync, collection)
+
+
+async def list_sources(collection: Any) -> list[dict]:
+    """List each distinct ``source`` metadata in the collection with chunk count.
+
+    Returns a list of ``{"source": str, "chunks": int}``, sorted by source.
+    """
+    return await asyncio.to_thread(_list_sources_sync, collection)
+
+
+async def delete_source(collection: Any, source: str) -> int:
+    """Delete every chunk for a given source. Returns count deleted."""
+    return await asyncio.to_thread(_delete_source_sync, collection, source)
