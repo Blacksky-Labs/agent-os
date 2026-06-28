@@ -21,12 +21,12 @@ cells:
 
   memory:
     versions:
-      - version: "1.0.0"
+      - version: "1.1.0"
         path: "cells.memory.cell"
 
   ingestion:
     versions:
-      - version: "1.0.0"
+      - version: "1.2.0"
         path: "cells.ingestion.cell"
 
   retrieval:
@@ -36,10 +36,20 @@ cells:
 
   context-builder:
     versions:
-      - version: "1.2.0"
+      - version: "1.3.1"
         path: "cells.context_builder.cell"
 
   llm-interface:
     versions:
-      - version: "1.0.0"
+      - version: "1.1.0"
         path: "cells.llm_interface.cell"
+
+  style:
+    versions:
+      - version: "1.0.0"
+        path: "cells.style.cell"
+
+  moe:
+    versions:
+      - version: "1.1.0"
+        path: "cells.moe.cell"

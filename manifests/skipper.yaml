@@ -1,0 +1,86 @@
+# Skipper — personal agent manifest. See SPEC.md §9.
+#
+# Cell set: mode-control → memory → ingestion → context-builder → (llm-interface|moe) → style.
+# `retrieval` is intentionally omitted until Skipper needs to read your files —
+# it keeps the local stack frictionless to stand up (no vector store, no embeddings).
+# Reasoning is single-model by DEFAULT (reasoning_mode above). The `moe` cell below
+# defines the opt-in expert roster; turning MoE on swaps it in for llm-interface.
+
+name: skipper
+version: 0.1.0
+namespace: skipper
+owner: mario             # the single owner/operator — Skipper is a personal agent
+multi_user: false        # one owner; web/app/phone all roll up to one profile
+reasoning_mode: single   # DEFAULT: single model (llm-interface). The `moe` roster below
+                         # is OFF until turned on in the config dashboard (Reasoning →
+                         # Mixture of Experts) or by setting this to `moe`.
+persona: ./personas/skipper.yaml
+
+cells:
+  - name: mode-control
+    version: "^1.0"
+  - name: memory             # Context Engine (resolves to 1.1.0)
+    version: "^1.0"
+    config:
+      max_history: 30
+      profile: true          # hydrate the living thread profile into user_profile
+      profile_limit: 12
+  - name: ingestion           # Sentiment Engine — deterministic pass (resolves to 1.2.0)
+    version: "^1.0"            # the LLM signal pass now runs in the signal_extract hook (background)
+  - name: context-builder
+    version: "^1.0"        # resolves to 1.2.0 (full persona schema)
+  - name: moe                # Reasoning: MoE activation protocol — OFF by default (see reasoning_mode)
+    version: "^1.1"
+    config:
+      # When enabled, this replaces llm-interface. The cascade (agentos-moe-protocol.md):
+      # safety lexicon (free) → triggers
+      # (free) → tiny-model triage → default (base model). Most turns are `general`
+      # and never touch a specialist. router_model is the TINY triage model — pull
+      # it with `ollama pull gemma4:e2b`; if it's missing, triage degrades to the
+      # default lane (Skipper still replies; safety still works deterministically).
+      # Roster is editable live via the config dashboard.
+      router_model: ollama/gemma4:e2b   # tier-4 triage — tiny + fast
+      default: general                   # the "no specialist" lane → base model answers
+      safety: seth                       # tier-1 safety routes here, pre-triage
+      experts:
+        - name: general
+          lane: general
+          description: everyday capture, tracking, logistics, questions, planning
+          # no model/system → routing here is the base path
+        - name: seth
+          lane: emotional
+          description: emotional support, venting, distress, reflection, hard days, "I feel…"
+          model: ollama/gemma4:e4b
+          system: >-
+            You are Skipper in a deeper emotional-support register. Be warm,
+            present, and unhurried. Reflect feelings without amplifying distress.
+            Don't diagnose. If there are signs of crisis, gently surface support.
+  - name: style              # post-expert — presentation: normalizes lists to clean bullets
+    version: "^1.0"
+
+# Local Gemma via Ollama (Option B in skipper-audit.md §D1). Ollama wraps
+# llama.cpp, so this is genuinely on-device. Cells call agentos.llm.chat_completion
+# (our thin OpenAI-compatible client) — each MoE expert may override `model` to run
+# its own smaller Gemma. Swap to a bundled llama.cpp / LiteRT-LM runtime for iOS.
+model:
+  provider: ollama
+  name: ollama/gemma4:e4b         # `ollama pull gemma4:e4b` — edge-first, designed for Mac + iPhone; use gemma4:e2b on low-RAM devices
+  api_base: http://localhost:11434
+  temperature: 0.6
+  max_tokens: 1024
+
+# Persist each turn pair so Skipper remembers within a session and across
+# restarts (memory.db is on disk at data/skipper/). after_turn fires after the
+# response is produced; the handler is hooks/memory_persist.py.
+hooks:
+  # after_turn runs in the background (after the reply is sent) and the handlers
+  # run in parallel — nothing here adds latency to a response.
+  after_turn:
+    - handler: memory_persist     # append the turn pair (turns table)
+    - handler: context_update     # fold this turn's deterministic entities into the thread profile
+    - handler: turn_metrics       # persist latency + token usage (dashboard analytics)
+    - handler: signal_extract     # background LLM pass: intent/sentiment + topics (captures tasks/errands)
+      config:
+        guidance: "Capture concrete tasks, errands, and to-dos as topics (e.g. 'mow the lawn', 'post office run'), plus the people and projects mentioned. Note emotional charge and any sign of distress."
+        flags: [is_commitment, crisis_signal]
+        deadline_s: 12

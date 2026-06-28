@@ -29,8 +29,8 @@ dependencies = [
     # CLI
     "typer>=0.12",
     "rich>=13.7",
-    # LLM (used by the v1.0.0 llm-interface cell)
-    "litellm>=1.35",
+    # LLM: the llm-interface cell uses an in-house OpenAI-compatible client
+    # (agentos/llm.py) over stdlib — no heavy provider library needed.
     # Retrieval (used by the v1.0.0 retrieval cell)
     "chromadb>=0.5",
     # Misc

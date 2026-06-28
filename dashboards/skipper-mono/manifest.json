@@ -1,0 +1,12 @@
+{
+  "id": "skipper-mono",
+  "name": "Skipper Mono",
+  "version": "1.0.0",
+  "description": "Terminal-style single-stream view of tasks and entities. Same data, minimal monospace skin — proves the dashboard swap.",
+  "author": "Blacksky Labs",
+  "compatible_agents": ["skipper"],
+  "entry_point": "index.html",
+  "views": ["tasks", "entities"],
+  "requires_api_version": "1.0.0",
+  "preview_color": "#07090C"
+}

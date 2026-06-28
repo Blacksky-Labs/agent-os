@@ -27,6 +27,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from agentos.config import ManifestError, load_manifest
+from agentos.paths import namespace_dir
 from agentos.registry import Registry
 
 
@@ -294,7 +295,7 @@ def start(
         os.getenv("AGENTOS_HOST", "127.0.0.1"), help="Bind host"
     ),
     port: int = typer.Option(
-        int(os.getenv("AGENTOS_PORT", "7777")), help="Bind port"
+        int(os.getenv("AGENTOS_PORT", "1776")), help="Bind port"
     ),
     reload: bool = typer.Option(
         False, "--reload", help="Auto-reload on code changes (dev only)"
@@ -311,6 +312,7 @@ def start(
         raise typer.Exit(1)
 
     model = manifest.get("model", {}) or {}
+    os.environ.setdefault("AGENTOS_SESSION_MODE", "new")
     console.print(
         Panel.fit(
             f"[bold]Booting {manifest['name']} v{manifest['version']}[/]\n"
@@ -318,15 +320,41 @@ def start(
             f"  cells:     {len(manifest.get('cells', []) or [])}\n"
             f"  tools:     {len(manifest.get('tools', []) or [])}\n"
             f"  provider:  {model.get('provider', '-')}\n"
-            f"  model:     {model.get('name', '-')}\n\n"
+            f"  model:     {model.get('name', '-')}\n"
+            f"  session:   {os.getenv('AGENTOS_SESSION_MODE')}\n\n"
             f"  POST http://{host}:{port}/chat",
             title="agentOS",
             border_style="cyan",
         )
     )
 
+    # Tell the app which entity this process is for (read in main.lifespan,
+    # surfaced on /health, used by the dashboard).
+    os.environ["AGENTOS_AGENT"] = agent_name
+
     import uvicorn
     uvicorn.run("agentos.main:app", host=host, port=port, reload=reload)
+
+
+@app.command()
+def resume(
+    agent_name: str = typer.Argument(..., help="Agent to resume"),
+    host: str = typer.Option(os.getenv("AGENTOS_HOST", "127.0.0.1"), help="Bind host"),
+    port: int = typer.Option(
+        int(os.getenv("AGENTOS_PORT", "1776")), help="Bind port"
+    ),
+    reload: bool = typer.Option(
+        False, "--reload", help="Auto-reload on code changes (dev only)"
+    ),
+):
+    """Boot an agent and resume its most recent conversation (memory + transcript).
+
+    Same as ``start`` but continues the last session instead of opening a fresh
+    one. Long-term memory (the Context Engine profile) persists either way; this
+    additionally replays the prior transcript.
+    """
+    os.environ["AGENTOS_SESSION_MODE"] = "resume"
+    start(agent_name=agent_name, host=host, port=port, reload=reload)
 
 
 # ============================================================
@@ -391,7 +419,7 @@ def destroy(
     # Candidate runtime-data paths agentOS owns for an agent.
     # As cells start writing real state, add their paths here.
     candidates = [
-        repo_root / "data" / namespace,
+        namespace_dir(namespace, repo_root),
         repo_root / "chroma_db" / namespace,
     ]
     existing = [p for p in candidates if p.exists()]
@@ -447,7 +475,7 @@ def rebuild(
         os.getenv("AGENTOS_HOST", "127.0.0.1"), help="Bind host"
     ),
     port: int = typer.Option(
-        int(os.getenv("AGENTOS_PORT", "7777")), help="Bind port"
+        int(os.getenv("AGENTOS_PORT", "1776")), help="Bind port"
     ),
     reload: bool = typer.Option(
         False, "--reload", help="Auto-reload on code changes (dev only)"
@@ -484,12 +512,19 @@ def rebuild(
 @app.command()
 def ingest(
     agent_name: str = typer.Argument(..., help="Agent name (must have retrieval cell)"),
-    path: str = typer.Argument(..., help="File or folder to ingest (.md, .txt, .markdown)"),
+    path: Optional[str] = typer.Argument(
+        None,
+        help="File or folder to ingest. Defaults to corpus/<agent>/ (the agent's drop folder).",
+    ),
 ):
     """Load documents into an agent's per-namespace Chroma collection.
 
-    Walks ``path``, chunks each file by paragraph, embeds via the agent's
-    configured embedding model, and upserts into
+    With no ``PATH`` argument, ingests from the agent's drop folder
+    ``corpus/<agent>/`` (created at scaffold time). Pass an explicit path
+    to ingest from somewhere else.
+
+    Walks the target, chunks each file by paragraph, embeds via the
+    agent's configured embedding model, and upserts into
     ``data/<namespace>/chroma/``. Re-ingesting the same content is
     idempotent (chunk ids are content-hashed).
     """
@@ -523,10 +558,21 @@ def ingest(
         "embedding_api_base", "http://localhost:11434"
     )
 
-    target = Path(path).expanduser()
-    if not target.exists():
-        console.print(f"[red]Path not found: {target}[/]")
-        raise typer.Exit(1)
+    # Default to the agent's drop folder if no path was given.
+    if path is None:
+        target = repo_root / "corpus" / agent_name
+        if not target.exists():
+            target.mkdir(parents=True, exist_ok=True)
+            console.print(
+                f"[yellow]Drop folder {target} was missing — created it.[/]\n"
+                f"[dim]Add files to it and re-run.[/]"
+            )
+            raise typer.Exit(0)
+    else:
+        target = Path(path).expanduser()
+        if not target.exists():
+            console.print(f"[red]Path not found: {target}[/]")
+            raise typer.Exit(1)
 
     namespace = manifest["namespace"]
     console.print(
@@ -769,6 +815,13 @@ def new_agent(
     with manifest_path.open("w") as f:
         yaml.safe_dump(manifest_data, f, sort_keys=False, default_flow_style=False)
 
+    # --- Create the drop folder if the retrieval cell is selected ---
+    drop_folder_created = False
+    if "retrieval" in cells_selected:
+        drop_folder = repo_root / "corpus" / name
+        drop_folder.mkdir(parents=True, exist_ok=True)
+        drop_folder_created = True
+
     # --- Update .env with any keys needed ---
     if env_keys_needed:
         env_path = repo_root / ".env"
@@ -791,14 +844,20 @@ def new_agent(
             )
 
     # --- Summary ---
+    extras = ""
+    if drop_folder_created:
+        extras = (
+            f"  corpus/{name}/         [dim](drop documents here)[/]\n"
+        )
     console.print(
         Panel.fit(
             f"[bold green]✓ Scaffolded[/]\n\n"
             f"  manifests/{name}.yaml\n"
-            f"  personas/{name}.yaml\n\n"
+            f"  personas/{name}.yaml\n"
+            f"{extras}\n"
             f"[bold]Next:[/]\n"
             f"  agentos start {name}\n\n"
-            f"  curl -X POST http://127.0.0.1:7777/chat \\\n"
+            f"  curl -X POST http://127.0.0.1:1776/chat \\\n"
             f"    -H 'Content-Type: application/json' \\\n"
             f"    -d '{{\"agent_name\":\"{name}\","
             f"\"user_message\":\"ping\","
@@ -1126,7 +1185,7 @@ def run(
         os.getenv("AGENTOS_HOST", "127.0.0.1"), help="Bind host"
     ),
     port: int = typer.Option(
-        int(os.getenv("AGENTOS_PORT", "7777")), help="Bind port"
+        int(os.getenv("AGENTOS_PORT", "1776")), help="Bind port"
     ),
     reload: bool = typer.Option(
         False, "--reload", help="Auto-reload on code changes (dev only)"

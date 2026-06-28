@@ -1,0 +1,12 @@
+{
+  "id": "skipper-default",
+  "name": "Skipper Default",
+  "version": "1.0.0",
+  "description": "Personal dashboard for Skipper. Tasks and entities, inline editing, direct interaction.",
+  "author": "Blacksky Labs",
+  "compatible_agents": ["skipper"],
+  "entry_point": "index.html",
+  "views": ["tasks", "entities"],
+  "requires_api_version": "1.0.0",
+  "preview_color": "#0A0F1E"
+}

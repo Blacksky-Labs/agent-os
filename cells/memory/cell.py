@@ -1,21 +1,21 @@
-"""memory cell — v1.0.0.
+"""memory cell — v1.1.0 — the Context Engine (read side).
 
-Hydrates ``context.conversation_history`` from per-namespace SQLite at
-``data/<namespace>/memory.db``. The actual write (after each turn) lives
-in the after_turn hook handler ``hooks/memory_persist.py``, per SPEC §5
-(cells stay pure; side effects belong to hooks).
+Hydrates two channels from per-namespace SQLite at ``data/<namespace>/memory.db``:
+    - ``context.conversation_history`` — the last N turns for this session
+    - ``context.user_profile`` — the living *thread profile*: subjects the user
+      keeps returning to, weighted by recurrence + emotional charge (v1.1.0)
 
-v1.0.0 scope:
-    - Local SQLite, one DB per namespace
-    - Read-only on ``execute()``: loads the last N turns for the current
-      ``session_id`` into ``context.conversation_history``
-    - Lazy: opens the DB on first ``execute()`` (namespace isn't known
-      at ``init()``)
-    - Configurable history limit via cell config ``max_history`` (default 20)
+Reads only. The writes are side effects in hooks (SPEC §5/§7):
+``hooks/memory_persist.py`` appends turns; ``hooks/context_update.py`` updates
+the thread profile from what the Sentiment Engine extracted.
 
-Future (not in v1.0.0):
+v1.1.0 vs v1.0.0:
+    - Adds the thread profile into ``context.user_profile`` (the Context Engine).
+    - Config: ``profile`` (bool, default True), ``profile_limit`` (default 12).
+
+Future:
     - v2.0.0: Postgres/Redis tiered backend (the Maurice pattern)
-    - ``user_profile`` and ``semantic_history`` channels
+    - ``semantic_history`` channel
 """
 
 from __future__ import annotations
@@ -23,16 +23,19 @@ from __future__ import annotations
 from pathlib import Path
 
 from agentos.context import AgentContext
+from cells.memory.profile import load_profile, profile_key
 from cells.memory.store import init_store, load_turns
 
 
 class Cell:
     name = "memory"
-    version = "1.0.0"
+    version = "1.1.0"
 
     def __init__(self, config: dict):
         self.config = config or {}
         self.max_history: int = int(self.config.get("max_history", 20))
+        self.profile_enabled: bool = bool(self.config.get("profile", True))
+        self.profile_limit: int = int(self.config.get("profile_limit", 12))
         self._db_path: Path | None = None
         self._inited_for_ns: str | None = None
 
@@ -51,6 +54,16 @@ class Cell:
             context.session_id,
             limit=self.max_history,
         )
+
+        # Context Engine: hydrate the living thread profile (cross-session,
+        # per user). Read-only here; the context_update hook does the writes.
+        if self.profile_enabled:
+            context.user_profile = {
+                "threads": await load_profile(
+                    self._db_path, profile_key(context), self.profile_limit
+                )
+            }
+
         return context
 
     async def teardown(self) -> None:

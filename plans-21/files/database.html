@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Database Layer — AgentOS · Blacksky Labs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --black: #060608;
+  --off-black: #0c0c10;
+  --panel: #101014;
+  --border: #1a1a22;
+  --border-light: #262630;
+  --white: #f0eeea;
+  --white-dim: #9a968f;
+  --white-mid: #524e50;
+  --white-faint: #28262a;
+  --ao-green: #c8f060;
+  --prism: #f060a0;
+  --prism-dim: rgba(240,96,160,0.08);
+  --prism-border: rgba(240,96,160,0.25);
+  --t0: #6060f0;
+  --t1: #60a0f0;
+  --t2: #60d0f0;
+  --t3: #60f0c0;
+  --standard: #f0b060;
+  --grid: rgba(255,255,255,0.015);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--black); color: var(--white);
+  font-family: 'DM Mono', monospace; font-size: 14px;
+  line-height: 1.6; overflow-x: hidden;
+}
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px; pointer-events: none; z-index: 0;
+}
+
+/* NAV */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 48px; height: 60px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(6,6,8,0.96); backdrop-filter: blur(16px);
+}
+.nav-left { display: flex; align-items: center; gap: 20px; }
+.nav-back {
+  display: flex; align-items: center; gap: 6px; text-decoration: none;
+  color: var(--white-dim); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; padding-right: 20px;
+  border-right: 1px solid var(--border); transition: color 0.2s;
+}
+.nav-back:hover { color: var(--white); }
+.nav-back::before { content: '←'; margin-right: 4px; }
+.nav-title {
+  font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--white-dim); text-decoration: none;
+}
+.nav-title span { color: var(--ao-green); }
+.nav-chapter {
+  font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--white-mid); padding: 4px 10px; border: 1px solid var(--border);
+  border-radius: 2px; background: var(--panel);
+}
+.nav-links { display: flex; gap: 28px; list-style: none; }
+.nav-links a {
+  color: var(--white-dim); text-decoration: none; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase; transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--white); }
+
+/* HERO */
+.hero {
+  position: relative; min-height: 100vh; display: flex;
+  flex-direction: column; justify-content: flex-end;
+  padding: 120px 48px 80px; overflow: hidden; z-index: 1;
+  border-bottom: 1px solid var(--border);
+}
+
+.hero-bg {
+  position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+}
+
+/* Prism tier visualization in hero bg */
+.hero-tiers {
+  position: absolute; right: -40px; top: 50%; transform: translateY(-50%);
+  width: 560px; height: 560px; opacity: 0;
+  animation: fadeIn 1.2s ease forwards 0.8s;
+}
+
+.tier-ring {
+  position: absolute; border-radius: 50%; border: 1px solid;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+}
+.tier-ring-0 { width: 120px; height: 120px; border-color: rgba(96,96,240,0.3); animation: pulse 4s ease-in-out infinite; }
+.tier-ring-1 { width: 240px; height: 240px; border-color: rgba(96,160,240,0.2); animation: pulse 4s ease-in-out infinite 0.5s; }
+.tier-ring-2 { width: 370px; height: 370px; border-color: rgba(96,208,240,0.15); animation: pulse 4s ease-in-out infinite 1s; }
+.tier-ring-3 { width: 500px; height: 500px; border-color: rgba(96,240,192,0.08); animation: pulse 4s ease-in-out infinite 1.5s; }
+
+@keyframes pulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+.tier-label {
+  position: absolute; font-family: 'Syne', sans-serif; font-size: 9px;
+  font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px;
+}
+.tier-label-0 { top: calc(50% - 20px); left: calc(50% - 16px); color: var(--t0); }
+.tier-label-1 { top: calc(50% - 132px); left: calc(50% + 20px); color: var(--t1); }
+.tier-label-2 { top: calc(50% + 150px); left: calc(50% - 190px); color: var(--t2); }
+.tier-label-3 { top: calc(50% - 270px); left: calc(50% - 230px); color: var(--t3); }
+
+.tl-dot { width: 5px; height: 5px; border-radius: 50; flex-shrink: 0; }
+
+.hero-eyebrow {
+  font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--prism);
+  margin-bottom: 28px; opacity: 0; animation: fadeUp 0.8s ease forwards 0.2s;
+  display: flex; align-items: center; gap: 12px;
+}
+.hero-eyebrow::before { content: ''; width: 32px; height: 1px; background: var(--prism); }
+
+.hero-headline {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: clamp(48px, 6.5vw, 88px); line-height: 0.95;
+  letter-spacing: -0.025em; max-width: 780px;
+  opacity: 0; animation: fadeUp 0.8s ease forwards 0.4s;
+}
+.hero-headline .hl-prism { color: var(--prism); }
+.hero-headline .hl-dim { font-style: italic; font-weight: 300; font-family: 'Fraunces', serif; color: var(--white-dim); }
+
+.hero-sub {
+  font-family: 'Fraunces', serif; font-style: italic;
+  font-size: clamp(16px, 1.8vw, 22px); color: var(--white-dim);
+  max-width: 580px; margin-top: 28px; line-height: 1.55;
+  opacity: 0; animation: fadeUp 0.8s ease forwards 0.6s;
+}
+
+.hero-meta {
+  display: flex; align-items: center; gap: 32px; margin-top: 48px;
+  opacity: 0; animation: fadeUp 0.8s ease forwards 0.8s; flex-wrap: wrap;
+}
+.hero-meta-item { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--white-dim); }
+.meta-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* LAYER NAV */
+.layer-nav {
+  position: sticky; top: 60px; z-index: 50;
+  background: rgba(6,6,8,0.96); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 48px; display: flex; overflow-x: auto;
+}
+.layer-nav-item {
+  padding: 14px 20px; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--white-faint); text-decoration: none; border-right: 1px solid var(--border);
+  white-space: nowrap; transition: color 0.2s, background 0.2s;
+  display: flex; align-items: center; gap: 8px;
+}
+.layer-nav-item:hover { color: var(--white-dim); background: rgba(255,255,255,0.02); }
+.layer-nav-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+/* SECTIONS */
+.db-section { position: relative; z-index: 1; border-bottom: 1px solid var(--border); }
+.section-inner { display: grid; grid-template-columns: 380px 1fr; min-height: 500px; }
+.section-left {
+  padding: 64px 40px; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 0;
+  position: sticky; top: 113px; height: fit-content;
+}
+.section-number {
+  font-family: 'Syne', sans-serif; font-size: 72px; font-weight: 800;
+  line-height: 1; letter-spacing: -0.05em; margin-bottom: 20px; opacity: 0.1;
+}
+.section-tag {
+  font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.section-tag-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.section-title {
+  font-family: 'Syne', sans-serif; font-size: clamp(26px, 2.5vw, 36px);
+  font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 18px;
+}
+.section-desc { font-size: 12px; color: var(--white-dim); line-height: 1.9; margin-bottom: 24px; }
+.section-desc strong { color: var(--white); font-weight: 500; }
+.section-right { padding: 64px 48px; display: flex; flex-direction: column; gap: 28px; }
+
+/* STANDARD STACKS */
+.stack-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.stack-card {
+  background: var(--off-black); padding: 28px 24px;
+  transition: background 0.2s; position: relative; overflow: hidden;
+}
+.stack-card:hover { background: var(--panel); }
+.stack-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--standard); opacity: 0; transition: opacity 0.3s;
+}
+.stack-card:hover::before { opacity: 1; }
+.sc-name { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.01em; }
+.sc-desc { font-size: 11px; color: var(--white-dim); line-height: 1.7; margin-bottom: 14px; }
+.sc-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.sc-tag { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 7px; border-radius: 2px; border: 1px solid var(--border); color: var(--white-mid); }
+.sc-use { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 10px; color: var(--white-faint); letter-spacing: 0.06em; }
+.sc-use span { color: var(--standard); }
+
+/* NOTE BOX */
+.note-box {
+  padding: 20px 24px; border: 1px solid var(--border-light);
+  background: rgba(255,255,255,0.01); border-radius: 3px;
+  display: flex; align-items: flex-start; gap: 14px;
+}
+.note-icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+.note-text { font-size: 12px; color: var(--white-dim); line-height: 1.75; }
+.note-text strong { color: var(--ao-green); font-weight: 500; }
+
+/* ═══════════════════════════════
+   PRISM SECTION
+═══════════════════════════════ */
+.prism-section {
+  position: relative; z-index: 1; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(240,96,160,0.03) 0%, transparent 40%);
+}
+
+.prism-hero {
+  padding: 80px 48px 48px; border-bottom: 1px solid var(--prism-border);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start;
+}
+
+.ph-left {}
+.ph-eyebrow {
+  font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--prism);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
+}
+.ph-eyebrow::before { content: ''; width: 24px; height: 1px; background: var(--prism); }
+
+.ph-headline {
+  font-family: 'Syne', sans-serif; font-size: clamp(36px, 4vw, 54px);
+  font-weight: 800; letter-spacing: -0.025em; line-height: 0.95; margin-bottom: 20px;
+}
+.ph-headline span { color: var(--prism); }
+
+.ph-desc { font-size: 13px; color: var(--white-dim); line-height: 1.85; margin-bottom: 20px; }
+.ph-desc strong { color: var(--white); font-weight: 500; }
+
+.ph-right { display: flex; flex-direction: column; gap: 12px; }
+
+.prism-stat {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 18px 20px; border: 1px solid var(--prism-border);
+  background: var(--prism-dim); border-radius: 3px;
+}
+.ps-num {
+  font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 800;
+  letter-spacing: -0.03em; color: var(--prism); line-height: 1; flex-shrink: 0;
+  min-width: 80px;
+}
+.ps-info {}
+.ps-label { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--white-mid); margin-bottom: 4px; }
+.ps-desc { font-size: 11px; color: var(--white-dim); line-height: 1.55; }
+
+/* TIER ARCHITECTURE */
+.tier-architecture { padding: 0 48px 64px; }
+
+.ta-label {
+  font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--white-faint); padding: 32px 0 24px;
+  display: flex; align-items: center; gap: 16px;
+}
+.ta-label::after { content: ''; flex: 1; height: 1px; background: var(--border); max-width: 200px; }
+
+.tier-stack { display: flex; flex-direction: column; gap: 0; }
+
+.tier-row {
+  display: grid; grid-template-columns: 240px 1fr;
+  border: 1px solid var(--border); border-bottom: none;
+  position: relative; transition: background 0.2s;
+}
+.tier-row:last-child { border-bottom: 1px solid var(--border); }
+.tier-row:hover { background: rgba(255,255,255,0.01); }
+
+.tier-row-connector {
+  display: flex; align-items: center; justify-content: center;
+  height: 24px; margin: 0 0 0 119px; position: relative; z-index: 2;
+}
+.trc-line {
+  width: 1px; height: 24px; background: var(--border-light); position: absolute;
+}
+.trc-arrow {
+  width: 16px; height: 16px; border-radius: 50%; background: var(--black);
+  border: 1px solid var(--border-light); display: flex; align-items: center;
+  justify-content: center; font-size: 8px; color: var(--white-faint); z-index: 1;
+}
+
+.tier-left {
+  padding: 28px 24px; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px;
+  background: rgba(0,0,0,0.2);
+}
+.tier-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 4px 10px; border-radius: 2px; border: 1px solid; width: fit-content;
+}
+.tier-badge-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.tier-badge-label { font-size: 8px; letter-spacing: 0.15em; text-transform: uppercase; }
+
+.tier-name {
+  font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800;
+  letter-spacing: -0.01em; line-height: 1;
+}
+.tier-subtitle { font-size: 10px; color: var(--white-faint); letter-spacing: 0.08em; }
+
+.tier-right { padding: 28px 32px; display: flex; flex-direction: column; gap: 14px; }
+.tier-desc { font-size: 12px; color: var(--white-dim); line-height: 1.85; }
+.tier-desc strong { color: var(--white); font-weight: 500; }
+
+.tier-features { display: flex; flex-wrap: wrap; gap: 6px; }
+.tier-feat {
+  font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 2px; border: 1px solid var(--border); color: var(--white-mid);
+}
+
+.tier-flow {
+  display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--white-faint);
+  letter-spacing: 0.08em; padding-top: 10px; border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.tf-step {
+  padding: 3px 10px; border-radius: 2px; border: 1px solid var(--border-light);
+  background: var(--panel); color: var(--white-mid); font-size: 9px; letter-spacing: 0.1em;
+}
+.tf-arrow { color: var(--white-faint); font-size: 10px; }
+
+/* ZERO LAYER */
+.zero-section { padding: 0 48px 64px; }
+
+.zero-block {
+  border: 1px solid rgba(96,96,240,0.25); background: rgba(96,96,240,0.04);
+  overflow: hidden;
+}
+
+.zero-header {
+  padding: 24px 28px; border-bottom: 1px solid rgba(96,96,240,0.2);
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(96,96,240,0.06);
+}
+.zh-left { display: flex; align-items: center; gap: 14px; }
+.zh-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--t0); flex-shrink: 0; animation: pulse 2s ease-in-out infinite; }
+.zh-name { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: var(--t0); letter-spacing: -0.01em; }
+.zh-label { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(96,96,240,0.6); margin-top: 2px; }
+.zh-badge { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; padding: 4px 10px; border: 1px solid rgba(96,96,240,0.3); border-radius: 2px; color: var(--t0); }
+
+.zero-body { display: grid; grid-template-columns: 1fr 1fr; }
+
+.zero-col { padding: 28px; }
+.zero-col:first-child { border-right: 1px solid rgba(96,96,240,0.15); }
+
+.zc-label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--t0); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.zc-label::before { content: ''; width: 16px; height: 1px; background: var(--t0); }
+
+.zero-mode {
+  padding: 16px 18px; border: 1px solid rgba(96,96,240,0.15); background: rgba(96,96,240,0.04);
+  border-radius: 3px; margin-bottom: 8px;
+}
+.zm-name { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: var(--t0); margin-bottom: 6px; }
+.zm-desc { font-size: 11px; color: var(--white-dim); line-height: 1.65; }
+
+.zero-stats { display: flex; flex-direction: column; gap: 10px; }
+.zs-row { display: flex; align-items: center; justify-content: space-between; font-size: 11px; padding: 10px 0; border-bottom: 1px solid rgba(96,96,240,0.1); }
+.zs-row:last-child { border-bottom: none; }
+.zs-key { color: var(--white-faint); letter-spacing: 0.08em; }
+.zs-val { color: var(--t0); font-weight: 500; }
+
+/* PRISM POWERED BY */
+.prism-powered { padding: 0 48px 64px; }
+.pp-label { font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--white-faint); margin-bottom: 24px; }
+.pp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); }
+.pp-cell { background: var(--off-black); padding: 24px 20px; transition: background 0.2s; }
+.pp-cell:hover { background: var(--panel); }
+.pp-dot { width: 6px; height: 6px; border-radius: 50%; margin-bottom: 12px; }
+.pp-name { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+.pp-desc { font-size: 10px; color: var(--white-faint); line-height: 1.6; }
+
+/* SWAPPABLE NOTE */
+.swappable-note {
+  display: flex; align-items: flex-start; gap: 14px; padding: 20px 24px;
+  border: 1px solid var(--border-light); background: rgba(255,255,255,0.01);
+  border-radius: 3px; margin: 0 48px 64px;
+}
+.sn-icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+.sn-text { font-size: 12px; color: var(--white-dim); line-height: 1.75; }
+.sn-text strong { color: var(--ao-green); font-weight: 500; }
+
+/* CTA */
+.db-cta {
+  position: relative; z-index: 1; padding: 100px 48px; text-align: center; overflow: hidden;
+}
+.db-cta-bg {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 50% 60% at 50% 100%, rgba(240,96,160,0.05) 0%, transparent 70%);
+}
+.cta-inner { max-width: 620px; margin: 0 auto; position: relative; }
+.cta-eyebrow { font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--prism); margin-bottom: 20px; }
+.cta-headline { font-family: 'Syne', sans-serif; font-size: clamp(32px, 4vw, 52px); font-weight: 800; letter-spacing: -0.03em; line-height: 0.95; margin-bottom: 18px; }
+.cta-sub { font-family: 'Fraunces', serif; font-style: italic; font-size: 16px; color: var(--white-dim); margin-bottom: 40px; line-height: 1.55; }
+.cta-actions { display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap; }
+.btn-primary {
+  background: var(--white); color: var(--black); padding: 13px 28px;
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase; border: none; cursor: pointer;
+  text-decoration: none; border-radius: 2px; transition: background 0.2s, transform 0.2s;
+}
+.btn-primary:hover { background: var(--ao-green); transform: translateY(-1px); }
+.btn-outline {
+  color: var(--white-dim); padding: 13px 28px; font-family: 'DM Mono', monospace;
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  text-decoration: none; border: 1px solid var(--border-light); border-radius: 2px;
+  transition: color 0.2s, border-color 0.2s;
+}
+.btn-outline:hover { color: var(--white); border-color: var(--white-dim); }
+
+/* FOOTER */
+footer {
+  position: relative; z-index: 1; border-top: 1px solid var(--border);
+  padding: 36px 48px; display: flex; align-items: center;
+  justify-content: space-between; flex-wrap: wrap; gap: 20px;
+}
+.footer-brand { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+.footer-brand span { color: var(--ao-green); }
+.footer-copy { font-size: 10px; color: var(--white-faint); }
+.footer-links { display: flex; gap: 20px; flex-wrap: wrap; }
+.footer-links a { font-size: 10px; color: var(--white-faint); text-decoration: none; letter-spacing: 0.1em; text-transform: uppercase; transition: color 0.2s; }
+.footer-links a:hover { color: var(--white); }
+
+@media (max-width: 960px) {
+  nav { padding: 0 20px; }
+  .nav-links { display: none; }
+  .hero { padding: 100px 24px 60px; }
+  .hero-tiers { display: none; }
+  .layer-nav { padding: 0 24px; }
+  .db-section .section-inner { grid-template-columns: 1fr; }
+  .section-left { position: static; padding: 44px 24px 28px; border-right: none; border-bottom: 1px solid var(--border); }
+  .section-right { padding: 28px 24px 44px; }
+  .stack-cards { grid-template-columns: 1fr; }
+  .prism-hero { grid-template-columns: 1fr; gap: 36px; padding: 48px 24px; }
+  .tier-architecture, .zero-section, .prism-powered { padding: 0 24px 48px; }
+  .tier-row { grid-template-columns: 1fr; }
+  .tier-left { border-right: none; border-bottom: 1px solid var(--border); }
+  .zero-body { grid-template-columns: 1fr; }
+  .zero-col:first-child { border-right: none; border-bottom: 1px solid rgba(96,96,240,0.15); }
+  .pp-grid { grid-template-columns: 1fr 1fr; }
+  .swappable-note { margin: 0 24px 48px; }
+  .db-cta { padding: 60px 24px; }
+  footer { padding: 28px 24px; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-left">
+    <a href="index.html" class="nav-back">AgentOS</a>
+    <a href="index.html" class="nav-title">Agent<span>OS</span></a>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#standard">Standard Stacks</a></li>
+    <li><a href="#prism">Prism</a></li>
+    <li><a href="#zero">Zero Layer</a></li>
+    <li><a href="#powered">Built On</a></li>
+  </ul>
+  <span class="nav-chapter">Database Layer</span>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg">
+    <div class="hero-tiers">
+      <div class="tier-ring tier-ring-3"></div>
+      <div class="tier-ring tier-ring-2"></div>
+      <div class="tier-ring tier-ring-1"></div>
+      <div class="tier-ring tier-ring-0"></div>
+      <div class="tier-label tier-label-3"><span class="tl-dot" style="background:var(--t3);border-radius:50%;display:inline-block;width:5px;height:5px;"></span>T3 · Intelligence</div>
+      <div class="tier-label tier-label-2"><span class="tl-dot" style="background:var(--t2);border-radius:50%;display:inline-block;width:5px;height:5px;"></span>T2 · Structure</div>
+      <div class="tier-label tier-label-1"><span class="tl-dot" style="background:var(--t1);border-radius:50%;display:inline-block;width:5px;height:5px;"></span>T1 · Capture</div>
+      <div class="tier-label tier-label-0">Zero</div>
+    </div>
+  </div>
+
+  <div class="hero-eyebrow">AgentOS · Database Layer</div>
+  <h1 class="hero-headline">
+    Your entity's<br>
+    <span class="hl-dim">memory lives</span><br>
+    <span class="hl-prism">here.</span>
+  </h1>
+  <p class="hero-sub">Every entity needs a place to store and retrieve what it knows. Standard stacks for most domains. Prism — Blacksky's AI-native database — for everything at scale.</p>
+
+  <div class="hero-meta">
+    <div class="hero-meta-item"><span class="meta-dot" style="background:var(--standard);"></span>Standard Stacks</div>
+    <div class="hero-meta-item"><span class="meta-dot" style="background:var(--prism);"></span>Prism · Default at Scale</div>
+    <div class="hero-meta-item"><span class="meta-dot" style="background:var(--t0);"></span>Zero · Intake Layer</div>
+    <div class="hero-meta-item"><span class="meta-dot" style="background:var(--ao-green);"></span>Swappable · Dashboard Controlled</div>
+  </div>
+</section>
+
+<!-- LAYER NAV -->
+<div class="layer-nav">
+  <a href="#standard" class="layer-nav-item"><span class="layer-nav-dot" style="background:var(--standard);"></span>Standard Stacks</a>
+  <a href="#prism"    class="layer-nav-item"><span class="layer-nav-dot" style="background:var(--prism);"></span>Prism AI Database</a>
+  <a href="#zero"     class="layer-nav-item"><span class="layer-nav-dot" style="background:var(--t0);"></span>Zero Layer</a>
+  <a href="#powered"  class="layer-nav-item"><span class="layer-nav-dot" style="background:var(--ao-green);"></span>Built On Prism</a>
+</div>
+
+<!-- STANDARD STACKS -->
+<section class="db-section" id="standard">
+  <div class="section-inner">
+    <div class="section-left">
+      <div class="section-number" style="color:var(--standard);">01</div>
+      <div class="section-tag" style="color:var(--standard);">
+        <span class="section-tag-dot" style="background:var(--standard);"></span>
+        Standard Stacks
+      </div>
+      <h2 class="section-title">The right database for your domain.</h2>
+      <p class="section-desc">Not every entity needs a 250,000-record intelligence layer. A focused business oracle runs lean and fast on a standard stack — precise retrieval on a well-defined dataset.</p>
+      <p class="section-desc"><strong>Pick what fits. Swap it later.</strong> Every database option is configurable from your dashboard without touching the entity.</p>
+    </div>
+    <div class="section-right">
+      <div class="stack-cards">
+        <div class="stack-card">
+          <div class="sc-name">Lightweight DB</div>
+          <div class="sc-desc">Fast, focused retrieval on a defined dataset. Ideal for business-scale oracles where speed and precision matter more than breadth.</div>
+          <div class="sc-tags"><span class="sc-tag">Fast</span><span class="sc-tag">Focused</span><span class="sc-tag">Low overhead</span></div>
+          <div class="sc-use">Best for: <span>CRM, pipeline, internal ops</span></div>
+        </div>
+        <div class="stack-card">
+          <div class="sc-name">Vector RAG</div>
+          <div class="sc-desc">ChromaDB-powered semantic retrieval. Meaning-aware search across documents, knowledge bases, and unstructured content at mid-scale.</div>
+          <div class="sc-tags"><span class="sc-tag">Semantic</span><span class="sc-tag">ChromaDB</span><span class="sc-tag">Mid-scale</span></div>
+          <div class="sc-use">Best for: <span>Knowledge bases, document retrieval</span></div>
+        </div>
+        <div class="stack-card">
+          <div class="sc-name">PostgreSQL</div>
+          <div class="sc-desc">Relational structure with precise query capability. Best when your domain has well-defined schemas and structured records that benefit from exact retrieval.</div>
+          <div class="sc-tags"><span class="sc-tag">Relational</span><span class="sc-tag">Structured</span><span class="sc-tag">Precise</span></div>
+          <div class="sc-use">Best for: <span>Structured data, well-defined schemas</span></div>
+        </div>
+        <div class="stack-card" style="border: 1px solid var(--prism-border); background: var(--prism-dim);">
+          <div class="sc-name" style="color:var(--prism);">Prism ↗</div>
+          <div class="sc-desc">When your oracle needs to think at scale. 250k+ records, real-time ingestion, AI-native tiered architecture. <strong style="color:var(--white);">The default recommendation for large-scale entities.</strong></div>
+          <div class="sc-tags">
+            <span class="sc-tag" style="color:var(--prism);border-color:var(--prism-border);">AI Native</span>
+            <span class="sc-tag" style="color:var(--prism);border-color:var(--prism-border);">250k+</span>
+            <span class="sc-tag" style="color:var(--prism);border-color:var(--prism-border);">Blacksky</span>
+          </div>
+          <div class="sc-use" style="border-top-color:var(--prism-border);">Best for: <span style="color:var(--prism);">Large-scale oracles, real-time feeds</span></div>
+        </div>
+      </div>
+      <div class="note-box">
+        <div class="note-icon">⟳</div>
+        <div class="note-text">The database layer is <strong>swappable from your dashboard</strong>. Start with a lightweight stack and scale to Prism when your entity outgrows it — no rebuilding required.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRISM -->
+<section class="prism-section" id="prism">
+
+  <div class="prism-hero">
+    <div class="ph-left">
+      <div class="ph-eyebrow">Blacksky Labs · AI Database</div>
+      <h2 class="ph-headline">Prism isn't a database.<br><span>It thinks.</span></h2>
+      <p class="ph-desc">Most databases store and retrieve. <strong>Prism understands.</strong> Built by Blacksky as an AI-native data layer, Prism moves data through tiers of increasing intelligence — from raw capture to structured knowledge to vector-indexed insight — with AI mediating every transition.</p>
+      <p class="ph-desc">When your entity connects to Prism, it doesn't just query a database. It queries a <strong>living intelligence layer</strong> that gets smarter as more data flows through it.</p>
+      <p class="ph-desc" style="color:var(--white-mid); font-size:11px;">Prism is its own product with its own mini-site. What follows is what you need to know for your AO entity.</p>
+    </div>
+    <div class="ph-right">
+      <div class="prism-stat">
+        <div class="ps-num">250k+</div>
+        <div class="ps-info">
+          <div class="ps-label">Records · KnowGov France</div>
+          <div class="ps-desc">Civic intelligence records actively indexed and queryable in real time via Prism.</div>
+        </div>
+      </div>
+      <div class="prism-stat">
+        <div class="ps-num">16k</div>
+        <div class="ps-info">
+          <div class="ps-label">Active Bills · US Congress</div>
+          <div class="ps-desc">Live legislative records tracked, enriched, and connected across sessions and sponsors.</div>
+        </div>
+      </div>
+      <div class="prism-stat">
+        <div class="ps-num">20k+</div>
+        <div class="ps-info">
+          <div class="ps-label">Records/Day · Axis Ingestion</div>
+          <div class="ps-desc">Real-time sentiment data flowing through Zero into Prism daily via the Axis engine.</div>
+        </div>
+      </div>
+      <div class="prism-stat">
+        <div class="ps-num">4</div>
+        <div class="ps-info">
+          <div class="ps-label">Intelligence Tiers</div>
+          <div class="ps-desc">Zero → T1 Capture → T2 Structure → T3 Intelligence. Each tier adds depth.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIER ARCHITECTURE -->
+  <div class="tier-architecture">
+    <div class="ta-label">Prism Tier Architecture</div>
+
+    <div class="tier-stack">
+
+      <!-- T1 -->
+      <div class="tier-row">
+        <div class="tier-left">
+          <div class="tier-badge" style="background:rgba(96,160,240,0.1);border-color:rgba(96,160,240,0.3);">
+            <span class="tier-badge-dot" style="background:var(--t1);"></span>
+            <span class="tier-badge-label" style="color:var(--t1);">Tier 1</span>
+          </div>
+          <div class="tier-name" style="color:var(--t1);">Capture</div>
+          <div class="tier-subtitle">Raw intake & normalization</div>
+        </div>
+        <div class="tier-right">
+          <div class="tier-desc">The first tier receives raw data from any source — API feeds, firehoses, manual ingestion, webhooks. Data is normalized into a consistent structure and time-stamped. <strong>Nothing is lost. Everything is captured.</strong> T1 is the archive layer — the source of truth for every record that has ever entered Prism.</div>
+          <div class="tier-features">
+            <span class="tier-feat" style="color:var(--t1);border-color:rgba(96,160,240,0.25);">MongoDB</span>
+            <span class="tier-feat">Raw ingestion</span>
+            <span class="tier-feat">Normalization</span>
+            <span class="tier-feat">Full archive</span>
+            <span class="tier-feat">Timestamp indexed</span>
+          </div>
+          <div class="tier-flow">
+            <span class="tf-step">API Feed</span><span class="tf-arrow">→</span>
+            <span class="tf-step">Firehose</span><span class="tf-arrow">→</span>
+            <span class="tf-step">Webhook</span><span class="tf-arrow">→</span>
+            <span class="tf-step" style="color:var(--t1);border-color:rgba(96,160,240,0.3);">T1 Capture</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tier-row-connector"><div class="trc-line"></div><div class="trc-arrow">↓</div></div>
+
+      <!-- T2 -->
+      <div class="tier-row">
+        <div class="tier-left">
+          <div class="tier-badge" style="background:rgba(96,208,240,0.1);border-color:rgba(96,208,240,0.3);">
+            <span class="tier-badge-dot" style="background:var(--t2);"></span>
+            <span class="tier-badge-label" style="color:var(--t2);">Tier 2</span>
+          </div>
+          <div class="tier-name" style="color:var(--t2);">Structure</div>
+          <div class="tier-subtitle">AI-mediated enrichment</div>
+        </div>
+        <div class="tier-right">
+          <div class="tier-desc">AI mediates the transition from T1 to T2. Raw records are enriched, classified, and structured into relational form. Entities are extracted, relationships mapped, and metadata attached. <strong>T2 is where raw data becomes knowledge</strong> — queryable, structured, and semantically aware.</div>
+          <div class="tier-features">
+            <span class="tier-feat" style="color:var(--t2);border-color:rgba(96,208,240,0.25);">PostgreSQL</span>
+            <span class="tier-feat">AI enrichment</span>
+            <span class="tier-feat">Entity extraction</span>
+            <span class="tier-feat">Relationship mapping</span>
+            <span class="tier-feat">Classification</span>
+          </div>
+          <div class="tier-flow">
+            <span class="tf-step" style="color:var(--t1);border-color:rgba(96,160,240,0.3);">T1 Records</span>
+            <span class="tf-arrow">→</span>
+            <span class="tf-step">AI Enrichment</span>
+            <span class="tf-arrow">→</span>
+            <span class="tf-step" style="color:var(--t2);border-color:rgba(96,208,240,0.3);">T2 Structure</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tier-row-connector"><div class="trc-line"></div><div class="trc-arrow">↓</div></div>
+
+      <!-- T3 -->
+      <div class="tier-row">
+        <div class="tier-left">
+          <div class="tier-badge" style="background:rgba(96,240,192,0.1);border-color:rgba(96,240,192,0.3);">
+            <span class="tier-badge-dot" style="background:var(--t3);"></span>
+            <span class="tier-badge-label" style="color:var(--t3);">Tier 3</span>
+          </div>
+          <div class="tier-name" style="color:var(--t3);">Intelligence</div>
+          <div class="tier-subtitle">Vector-indexed insight</div>
+        </div>
+        <div class="tier-right">
+          <div class="tier-desc">The intelligence tier. Structured T2 data is embedded into vector space — enabling semantic search, similarity reasoning, and meaning-aware retrieval across the full corpus. <strong>T3 is what your entity queries.</strong> When Judy answers a question about a congressional bill, she's pulling from T3 — where the data isn't just stored, it's understood.</div>
+          <div class="tier-features">
+            <span class="tier-feat" style="color:var(--t3);border-color:rgba(96,240,192,0.25);">Qdrant</span>
+            <span class="tier-feat">Vector embeddings</span>
+            <span class="tier-feat">Semantic search</span>
+            <span class="tier-feat">Similarity reasoning</span>
+            <span class="tier-feat">Real-time query</span>
+          </div>
+          <div class="tier-flow">
+            <span class="tf-step" style="color:var(--t2);border-color:rgba(96,208,240,0.3);">T2 Knowledge</span>
+            <span class="tf-arrow">→</span>
+            <span class="tf-step">Vector Embed</span>
+            <span class="tf-arrow">→</span>
+            <span class="tf-step" style="color:var(--t3);border-color:rgba(96,240,192,0.3);">T3 Intelligence</span>
+            <span class="tf-arrow">→</span>
+            <span class="tf-step">Entity Query</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ZERO LAYER -->
+  <div class="zero-section" id="zero">
+    <div class="ta-label" style="padding-top:0;">Zero · The Intake Layer</div>
+    <div class="zero-block">
+      <div class="zero-header">
+        <div class="zh-left">
+          <div class="zh-dot"></div>
+          <div>
+            <div class="zh-name">Zero</div>
+            <div class="zh-label">NAS Edge Layer · Beneath Prism</div>
+          </div>
+        </div>
+        <div class="zh-badge">Always On</div>
+      </div>
+      <div class="zero-body">
+        <div class="zero-col">
+          <div class="zc-label">Two Modes</div>
+          <div class="zero-mode">
+            <div class="zm-name">Firehose Mode</div>
+            <div class="zm-desc">Zero ingests a live data firehose — up to 20,000+ records per day — filtering and routing relevant signals down into Prism T1. Raw volume in. Relevant signal through. Everything else buffered and held.</div>
+          </div>
+          <div class="zero-mode">
+            <div class="zm-name">Backup Mode</div>
+            <div class="zm-desc">Zero acts as a cold backup layer for an existing Prism instance. Every record that enters Prism is mirrored to Zero. Full recovery capability. Zero data loss.</div>
+          </div>
+        </div>
+        <div class="zero-col">
+          <div class="zc-label">At a Glance</div>
+          <div class="zero-stats">
+            <div class="zs-row"><span class="zs-key">Infrastructure</span><span class="zs-val">Local NAS · Always On</span></div>
+            <div class="zs-row"><span class="zs-key">Ingest Capacity</span><span class="zs-val">20k+ records / day</span></div>
+            <div class="zs-row"><span class="zs-key">Mode</span><span class="zs-val">Firehose or Backup</span></div>
+            <div class="zs-row"><span class="zs-key">Routes To</span><span class="zs-val">Prism T1 Capture</span></div>
+            <div class="zs-row"><span class="zs-key">Used By</span><span class="zs-val">Axis Sentiment Engine</span></div>
+            <div class="zs-row"><span class="zs-key">Retroactive Testing</span><span class="zs-val">Full cold corpus available</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- POWERED BY PRISM -->
+  <div class="prism-powered" id="powered">
+    <div class="pp-label">Products Built on Prism</div>
+    <div class="pp-grid">
+      <div class="pp-cell">
+        <div class="pp-dot" style="background:var(--context, #a0c8ff);"></div>
+        <div class="pp-name">KnowGov</div>
+        <div class="pp-desc">250k+ civic records. 16k active bills. Global legislative intelligence. The largest Prism deployment.</div>
+      </div>
+      <div class="pp-cell">
+        <div class="pp-dot" style="background:var(--t2);"></div>
+        <div class="pp-name">Axis</div>
+        <div class="pp-desc">Real-time public sentiment engine. Ingests Bluesky, Reddit, YouTube, gNews via Zero at 20k+ records/day.</div>
+      </div>
+      <div class="pp-cell">
+        <div class="pp-dot" style="background:var(--ao-green);"></div>
+        <div class="pp-name">AgentOS Entities</div>
+        <div class="pp-desc">Large-scale AO oracles connect natively to Prism. One dashboard switch. No rebuild required.</div>
+      </div>
+      <div class="pp-cell">
+        <div class="pp-dot" style="background:var(--standard);"></div>
+        <div class="pp-name">Eternal Ledger</div>
+        <div class="pp-desc">Bitcoin blockchain visualization. Live transaction data flowing through Prism's tiered pipeline in real time.</div>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- SWAPPABLE NOTE -->
+<div class="swappable-note">
+  <div class="sn-icon">⟳</div>
+  <div class="sn-text">The database layer is <strong>swappable from your dashboard</strong>. Every option — from Lightweight DB to full Prism — is a single configuration change. Your entity stays intact. Only the memory layer underneath changes.</div>
+</div>
+
+<!-- CTA -->
+<section class="db-cta">
+  <div class="db-cta-bg"></div>
+  <div class="cta-inner">
+    <div class="cta-eyebrow">AgentOS · Database Layer</div>
+    <h2 class="cta-headline">The right memory for your intelligence.</h2>
+    <p class="cta-sub">Standard stacks for focused domains. Prism when your entity needs to think at scale. Both swappable from your dashboard.</p>
+    <div class="cta-actions">
+      <a href="configurator.html" class="btn-primary">Build Your Entity</a>
+      <a href="llm.html" class="btn-outline">Model Layer →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div>
+    <div class="footer-brand">Agent<span>OS</span> · Blacksky Labs</div>
+    <div class="footer-copy">© 2026 Blacksky LLC — All rights reserved</div>
+  </div>
+  <div class="footer-links">
+    <a href="index.html">AgentOS</a>
+    <a href="reasoning.html">Reasoning Layer</a>
+    <a href="llm.html">Model Layer</a>
+    <a href="configurator.html">Configurator</a>
+    <a href="https://blackskymedia.org/">Blacksky Labs</a>
+  </div>
+</footer>
+
+</body>
+</html>

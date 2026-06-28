@@ -99,6 +99,18 @@ Format:
 - Why deferred: foreground-only is the simplest UX for MVP. Use `Ctrl+C`.
 - Trigger: running multiple agents on one host, or running unattended.
 
+**Drop-folder auto-watch** *(2026-05-18)*
+- Why deferred: foreground-only kernel; no daemon to host a file watcher. Manual `Ingest folder` button works fine for iterative editing.
+- Trigger: someone runs a long-lived agentOS process in daemon mode and wants the corpus to track file changes automatically.
+
+**Drop-folder "wipe and re-ingest" one-click** *(2026-05-18)*
+- Why deferred: today the workflow is delete each source in the UI list, then Ingest folder. Two steps but explicit. A combined button would be one click.
+- Trigger: Mario does this loop more than a couple of times a day.
+
+**Shared corpus folder across agents** *(2026-05-18)*
+- Why deferred: per-agent convention is simpler. Cross-agent shared content goes via copy or symlink.
+- Trigger: multiple agents reliably need the same source corpus (e.g., a company knowledge base feeding both Maurice and Judy).
+
 **Bulk delete / wildcard delete** *(2026-05-17)*
 - Why deferred: not yet enough churn to warrant it. `delete agent stan && delete agent stan2` is fine for now.
 - Trigger: Mario's build-and-destroy iteration speed needs `delete agent stan*` or `delete agent --all-prefix=test_`.

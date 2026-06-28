@@ -1,8 +1,20 @@
-"""context-builder cell — v1.2.0.
+"""context-builder cell — v1.3.0.
 
 Assembles the LLM prompt from the persona, mode constraints, retrieved
 corpus chunks, conversation history, and the current user message.
 Pure assembly — no I/O, no LLM calls, no side effects.
+
+v1.3.0 vs v1.2.1:
+    - Context Engine: renders ``context.user_profile['threads']`` — the
+      subjects the user keeps returning to (recurrence/charge-weighted) — into
+      the system prompt, so the entity surfaces continuity instead of starting
+      cold each session.
+
+v1.2.1 vs v1.2.0:
+    - Anti-recap: the closing anchor now tells the model to reply only with
+      its next message and never restate/quote/continue its earlier replies.
+      Fixes small local models (e.g. gemma3:4b) compounding their own prior
+      answers turn over turn (each reply swallowing the last).
 
 v1.2.0 vs v1.1.0:
     - System prompt now includes a "Reference material" section with
@@ -30,10 +42,11 @@ from agentos.context import AgentContext
 
 class Cell:
     name = "context-builder"
-    version = "1.2.0"
+    version = "1.3.1"
 
     def __init__(self, config: dict):
         self.config = config or {}
+        self.surface_threads = bool(self.config.get("surface_threads", True))
 
     def init(self, config: dict) -> None:
         pass
@@ -44,6 +57,8 @@ class Cell:
             agent_name=context.agent_name,
             mode_constraints=context.mode_constraints or {},
             retrieved_chunks=context.retrieved_chunks or [],
+            user_profile=context.user_profile or {},
+            surface_threads=self.surface_threads,
         )
 
         messages: list[dict] = [{"role": "system", "content": system_content}]
@@ -80,6 +95,8 @@ def _build_system_prompt(
     agent_name: str,
     mode_constraints: dict,
     retrieved_chunks: list[dict],
+    user_profile: dict | None = None,
+    surface_threads: bool = True,
 ) -> str:
     """Render persona + mode constraints + retrieved chunks into a system prompt."""
     sections: list[str] = []
@@ -129,6 +146,19 @@ def _build_system_prompt(
     if fmt_lines:
         sections.append("Format: " + " ".join(fmt_lines))
 
+    # --- 4b. Context Engine: ongoing threads ---
+    threads = (user_profile or {}).get("threads") or []
+    if surface_threads and threads:
+        thread_lines = [
+            "Ongoing threads — subjects this person keeps returning to. "
+            "Reference them naturally when relevant; do not list them back:"
+        ]
+        for t in threads[:8]:
+            mentions = t.get("mentions")
+            suffix = f" ({mentions}×)" if isinstance(mentions, int) and mentions > 1 else ""
+            thread_lines.append(f"- {t.get('key')}{suffix}")
+        sections.append("\n".join(thread_lines))
+
     # --- 5. Reference material (retrieved chunks) ---
     if retrieved_chunks:
         ref_lines = ["Reference material from the corpus (cite sources when you use them):"]
@@ -168,7 +198,10 @@ def _build_system_prompt(
     # --- 8. Anti-drift anchor (extended for reference material) ---
     anchor = (
         "Stay in character. Do not break the fourth wall or invent a "
-        "different persona unless the user directly asks for one."
+        "different persona unless the user directly asks for one. "
+        "Reply only with your next message in response to the most recent "
+        "user turn. Never restate, quote, or continue your earlier replies — "
+        "the conversation above is context, not something to repeat."
     )
     if retrieved_chunks:
         anchor += (

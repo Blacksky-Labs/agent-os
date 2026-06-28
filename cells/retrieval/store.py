@@ -20,13 +20,15 @@ from typing import Any
 import chromadb
 from chromadb.config import Settings
 
+from agentos.paths import namespace_dir
+
 
 COLLECTION_NAME = "documents"
 
 
 def chroma_dir_for(namespace: str, repo_root: Path | str = ".") -> Path:
     """Canonical Chroma persist directory for a namespace."""
-    return Path(repo_root) / "data" / namespace / "chroma"
+    return namespace_dir(namespace, repo_root) / "chroma"
 
 
 def chunk_id(source: str, chunk_index: int, text: str) -> str:

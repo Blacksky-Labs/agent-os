@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>skipper · mono</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!--
+  Skipper Mono — a second, deliberately different dashboard pack over the SAME
+  kernel API. Its only job alongside skipper-default is to prove the swap
+  contract: select it from the config picker and /dashboard serves this instead.
+  Single self-contained file, no framework. API base from ?api=, same-origin default.
+-->
+<style>
+:root{--bg:#07090C;--line:#10151A;--ink:#C8D2CE;--dim:#5C6B66;--green:#7CFFB2;--cyan:#65D9FF;--amber:#FFC56B;--red:#FF7A93;--violet:#C9A6FF}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;line-height:1.7;padding:0 0 60px}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+header{position:sticky;top:0;background:rgba(7,9,12,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:14px 18px}
+.prompt{color:var(--dim);font-size:12px}
+.prompt b{color:var(--green);font-weight:700}
+.prompt .cur{color:var(--ink)}
+.tabs{margin-top:10px;display:flex;gap:8px}
+.tabs button{font-size:12px;padding:4px 12px;border:1px solid var(--line);border-radius:4px;color:var(--dim)}
+.tabs button.on{color:var(--bg);background:var(--green);border-color:var(--green);font-weight:700}
+main{max-width:860px;margin:0 auto;padding:18px}
+.hint{color:var(--dim);font-size:11px;margin-bottom:14px}
+.line{display:flex;align-items:center;gap:12px;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.line:hover{background:#0B1014}
+.tag{flex:none;width:92px;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.t-pending{color:var(--dim)} .t-active{color:var(--cyan)} .t-complete{color:var(--green)}
+.t-escalated{color:var(--amber)} .t-cancelled{color:var(--dim);text-decoration:line-through}
+.tag.tap{cursor:pointer} .tag.tap:hover{filter:brightness(1.25)}
+.etag{flex:none;width:92px;font-weight:700;font-size:11px;color:var(--violet)}
+.txt{flex:1;overflow:hidden;text-overflow:ellipsis;color:var(--ink)}
+.txt .arrow{color:var(--dim)}
+.id{flex:none;color:var(--dim);font-size:11px}
+.x{flex:none;color:var(--dim);cursor:pointer;padding:0 6px}
+.x:hover{color:var(--red)}
+.x.armed{color:var(--red);font-weight:700}
+.sect{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.12em;margin:20px 0 6px;padding-left:10px}
+.empty{color:var(--dim);padding:50px 10px;text-align:center}
+.empty b{color:var(--ink);display:block;margin-bottom:6px;font-size:14px}
+.err{color:var(--red);padding:10px;border:1px solid var(--red);border-radius:4px;margin-bottom:14px;display:none}
+.err.show{display:block}
+footer{max-width:860px;margin:0 auto;padding:14px 18px;color:var(--dim);font-size:11px}
+footer a{color:var(--dim)} footer a:hover{color:var(--green)}
+</style>
+</head>
+<body>
+<header>
+  <div class="prompt"><b>skipper@local</b>:<span class="cur">~/dashboard</span>$ <span id="cmd">tasks --all</span></div>
+  <div class="tabs">
+    <button id="t-tasks" class="on" data-view="tasks">tasks</button>
+    <button id="t-ent" data-view="entities">entities</button>
+  </div>
+</header>
+<main>
+  <div class="err" id="err"></div>
+  <div class="hint" id="hint"></div>
+  <div id="out"></div>
+</main>
+<footer>skipper-mono v1.0.0 — <a id="cfg" href="#">change dashboard</a></footer>
+
+<script>
+"use strict";
+const API=(new URLSearchParams(location.search).get("api")||"").replace(/\/$/,"");
+const u=p=>API+p;
+const CYCLE={pending:"active",active:"complete",complete:"pending"};
+const ORDER=["PERSON","ORG","PLACE","CONCEPT","EVENT","OTHER"];
+const S={view:"tasks",tasks:[],entities:[]};
+const $=s=>document.querySelector(s);
+const esc=s=>s==null?"":String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const sid=i=>i?String(i).slice(0,8):"—";
+async function api(p,o){const r=await fetch(u(p),o);if(!r.ok){let d=r.status+"";try{const j=await r.json();if(j.detail)d=j.detail;}catch(e){}throw new Error(d);}return r.status===204?null:r.json();}
+function err(m){const e=$("#err");if(!m){e.classList.remove("show");return;}e.textContent="! "+m;e.classList.add("show");}
+
+async function load(){
+  err("");$("#out").innerHTML='<div class="hint">loading…</div>';
+  try{const[t,e]=await Promise.all([api("/api/tasks"),api("/api/entities")]);S.tasks=t||[];S.entities=e||[];render();}
+  catch(e){err("kernel unreachable — "+e.message);$("#out").innerHTML="";}
+}
+function render(){
+  $("#t-tasks").className=S.view==="tasks"?"on":"";
+  $("#t-ent").className=S.view==="entities"?"on":"";
+  $("#cmd").textContent=S.view==="tasks"?"tasks --all":"entities --all";
+  $("#hint").textContent=S.view==="tasks"
+    ?"click a status to advance it · × to delete":"grouped by type";
+  S.view==="tasks"?renderTasks():renderEntities();
+}
+function renderTasks(){
+  const o=$("#out");
+  if(!S.tasks.length){o.innerHTML='<div class="empty"><b>no tasks</b>Skipper is waiting for a goal.</div>';return;}
+  const byId=new Map(S.tasks.map(t=>[t.id,t]));
+  const roots=S.tasks.filter(t=>!t.parent_task_id||!byId.has(t.parent_task_id));
+  const kids=p=>S.tasks.filter(t=>t.parent_task_id===p);
+  const line=(t,c)=>`<div class="line" data-id="${t.id}">
+    <span class="tag tap t-${esc(t.status)}" data-act="cycle">${esc(t.status)}</span>
+    <span class="txt">${c?"&nbsp;&nbsp;↳ ":""}${esc(t.title)}</span>
+    <span class="id">#${sid(t.id)}</span>
+    <span class="x" data-act="del" title="delete">×</span></div>`;
+  let h="";roots.forEach(t=>{h+=line(t,false);kids(t.id).forEach(k=>h+=line(k,true));});
+  o.innerHTML=h;
+}
+function renderEntities(){
+  const o=$("#out");
+  if(!S.entities.length){o.innerHTML='<div class="empty"><b>no entities</b>People, places and orgs Skipper notices land here.</div>';return;}
+  const g={};S.entities.forEach(e=>{(g[e.entity_type]=g[e.entity_type]||[]).push(e);});
+  const order=[...ORDER.filter(t=>g[t]),...Object.keys(g).filter(t=>!ORDER.includes(t))];
+  let h="";order.forEach(ty=>{
+    h+=`<div class="sect">${esc(ty)} · ${g[ty].length}</div>`;
+    g[ty].forEach(e=>{const cf=e.canonical_form&&e.canonical_form!==e.surface_form?` <span class="arrow">→ ${esc(e.canonical_form)}</span>`:"";
+      h+=`<div class="line" data-id="${e.id}"><span class="etag">${esc(e.entity_type)}</span>
+        <span class="txt">${esc(e.surface_form)}${cf}</span><span class="id">#${sid(e.id)}</span></div>`;});
+  });
+  o.innerHTML=h;
+}
+document.addEventListener("click",async ev=>{
+  const tb=ev.target.closest(".tabs button");if(tb){S.view=tb.dataset.view;render();return;}
+  if(ev.target.id==="cfg"){ev.preventDefault();location.href=u("/config");return;}
+  const line=ev.target.closest(".line");if(!line)return;const id=line.dataset.id;
+  const act=(ev.target.closest("[data-act]")||{dataset:{}}).dataset.act;
+  if(act==="cycle"){
+    const cur=ev.target.textContent.trim();const next=CYCLE[cur]||"pending";
+    try{const up=await api("/api/tasks/"+encodeURIComponent(id),{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:next})});
+      const t=S.tasks.find(x=>x.id===id);if(t)Object.assign(t,up);render();}catch(e){err(e.message);}
+  }else if(act==="del"){
+    if(!ev.target.classList.contains("armed")){ev.target.classList.add("armed");ev.target.textContent="× confirm";
+      setTimeout(()=>{ev.target.classList.remove("armed");ev.target.textContent="×";},2500);return;}
+    try{await api("/api/tasks/"+encodeURIComponent(id),{method:"DELETE"});S.tasks=S.tasks.filter(x=>x.id!==id);render();}catch(e){err(e.message);}
+  }
+});
+load();
+</script>
+</body>
+</html>

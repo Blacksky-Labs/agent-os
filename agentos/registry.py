@@ -28,7 +28,7 @@ class Registry:
     def _load(self) -> dict:
         if not self.path.exists():
             return {}
-        with self.path.open() as f:
+        with self.path.open(encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         return data.get(self.kind, {}) or {}
 

@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Skipper · Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!--
+  Skipper Default dashboard pack (SKIPPER-DASH-SEED-001 Part 4).
+  Single self-contained file: embedded CSS + JS, no build step, no framework.
+  Cross-platform by construction — works in WKWebView (macOS/iOS) and WebView
+  (Android) and any browser. The kernel API base is read from ?api=<url>;
+  when the kernel serves this at /dashboard it defaults to same-origin.
+-->
+<style>
+:root{
+  --void:#0A0F1E; --panel:#0D1421; --panel-2:#111A2B; --hair:rgba(255,255,255,.06);
+  --hair-2:rgba(255,255,255,.10);
+  --cyan:#00D4FF; --violet:#8B5CF6; --amber:#F59E0B; --green:#10B981; --red:#F0607A;
+  --ink:#E8EEF6; --dim:#8A97AB; --faint:#4A5568;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:
+    radial-gradient(1100px 600px at 80% -10%, rgba(0,212,255,.06), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(139,92,246,.07), transparent 55%),
+    var(--void);
+  color:var(--ink); font-family:'Space Grotesk',system-ui,sans-serif; font-size:14px;
+  line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+
+/* ── Header ─────────────────────────────────────────── */
+header{
+  position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
+  background:rgba(10,15,30,.82);border-bottom:1px solid var(--hair);
+}
+.bar{display:flex;align-items:center;gap:18px;padding:14px 22px;max-width:920px;margin:0 auto;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:14px}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--cyan);box-shadow:0 0 12px var(--cyan)}
+.brand b{font-weight:700}
+.brand span{color:var(--cyan)}
+.views{display:flex;gap:4px;background:var(--panel);border:1px solid var(--hair);border-radius:10px;padding:4px}
+.views button{padding:7px 16px;border-radius:7px;font-size:13px;font-weight:600;color:var(--dim);letter-spacing:.02em;transition:.15s}
+.views button.active{color:var(--void);background:var(--cyan)}
+.views button.active.ent{background:var(--violet);color:#fff}
+.views button:not(.active):hover{color:var(--ink)}
+.spacer{flex:1}
+.count{font-size:12px;color:var(--faint)}
+.count b{color:var(--dim);font-weight:600}
+
+/* ── Layout ─────────────────────────────────────────── */
+main{max-width:920px;margin:0 auto;padding:22px 22px 80px}
+.filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:20px}
+.filters button{
+  font-size:12px;font-weight:500;padding:6px 13px;border-radius:20px;color:var(--dim);
+  border:1px solid var(--hair);background:var(--panel);letter-spacing:.02em;transition:.15s
+}
+.filters button:hover{border-color:var(--hair-2);color:var(--ink)}
+.filters button.on{color:var(--ink);border-color:var(--cyan);background:rgba(0,212,255,.10)}
+.group-h{display:flex;align-items:center;gap:10px;margin:22px 2px 11px;font-size:11px;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.group-h::after{content:"";flex:1;height:1px;background:var(--hair)}
+.group-h .n{color:var(--dim)}
+
+/* ── Cards ──────────────────────────────────────────── */
+.card{
+  background:linear-gradient(180deg,var(--panel-2),var(--panel));
+  border:1px solid var(--hair);border-radius:13px;margin-bottom:10px;overflow:hidden;
+  transition:border-color .15s, transform .15s;
+}
+.card:hover{border-color:var(--hair-2)}
+.card.child{margin-left:26px;border-left:2px solid rgba(0,212,255,.22)}
+.row{display:flex;align-items:center;gap:13px;padding:14px 16px;cursor:pointer}
+.row .caret{color:var(--faint);font-size:11px;transition:transform .18s;flex:none;width:10px}
+.card.open .row .caret{transform:rotate(90deg)}
+.title{flex:1;font-weight:500;font-size:14.5px;min-width:0}
+.title .sub{display:block;font-size:12px;color:var(--faint);font-weight:400;margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* status badge (tasks) */
+.badge{font-size:11px;font-weight:600;letter-spacing:.04em;padding:4px 10px;border-radius:7px;
+  border:1px solid transparent;white-space:nowrap;flex:none;user-select:none;text-transform:lowercase}
+.badge.tap{cursor:pointer}
+.badge.tap:hover{filter:brightness(1.18)}
+.s-pending{color:var(--dim);background:rgba(138,151,171,.10);border-color:var(--hair-2)}
+.s-active{color:var(--cyan);background:rgba(0,212,255,.12);border-color:rgba(0,212,255,.30)}
+.s-complete{color:var(--green);background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.32)}
+.s-escalated{color:var(--amber);background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.34)}
+.s-cancelled{color:var(--faint);background:rgba(74,85,104,.10);border-color:var(--hair);text-decoration:line-through}
+
+/* entity type chip */
+.etype{font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;letter-spacing:.06em;
+  padding:4px 9px;border-radius:6px;color:var(--violet);background:rgba(139,92,246,.13);
+  border:1px solid rgba(139,92,246,.30);flex:none}
+.conf{font-size:11px;color:var(--faint);flex:none}
+
+/* expanded body */
+.body{display:none;padding:2px 16px 16px;border-top:1px solid var(--hair)}
+.card.open .body{display:block}
+.body .meta{display:flex;flex-wrap:wrap;gap:8px 18px;margin:13px 0;font-size:12px;color:var(--dim)}
+.body .meta .k{color:var(--faint);margin-right:6px;text-transform:uppercase;letter-spacing:.08em;font-size:10.5px}
+.desc{font-size:13.5px;color:var(--ink);margin:11px 0;white-space:pre-wrap}
+.desc.empty{color:var(--faint);font-style:italic}
+.linked{margin:13px 0 4px}
+.linked .lh{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:5px 10px;border-radius:7px;
+  background:var(--panel);border:1px solid var(--hair);margin:0 6px 6px 0}
+.chip.task{color:var(--cyan)} .chip.ent{color:var(--violet)}
+.chip .mini{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--faint)}
+
+/* inline edit */
+.edit{display:grid;gap:9px;margin:13px 0 4px}
+.edit label{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:4px;display:block}
+.edit input,.edit textarea,.edit select{
+  width:100%;background:var(--void);color:var(--ink);border:1px solid var(--hair-2);border-radius:8px;
+  padding:9px 11px;font-family:inherit;font-size:13px;resize:vertical}
+.edit input:focus,.edit textarea:focus,.edit select:focus{outline:none;border-color:var(--cyan)}
+
+/* action row */
+.acts{display:flex;align-items:center;gap:9px;margin-top:14px;flex-wrap:wrap}
+.btn{font-size:12.5px;font-weight:600;padding:8px 15px;border-radius:8px;letter-spacing:.02em;transition:.15s}
+.btn.primary{background:var(--cyan);color:var(--void)}
+.btn.primary.ent{background:var(--violet);color:#fff}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{color:var(--dim);border:1px solid var(--hair-2)}
+.btn.ghost:hover{color:var(--ink);border-color:var(--hair-2)}
+.btn.danger{color:var(--red);border:1px solid rgba(240,96,122,.40)}
+.btn.danger:hover{background:rgba(240,96,122,.12)}
+.btn.confirm{background:var(--red);color:#fff}
+.flex-sp{flex:1}
+.note{font-size:11.5px;color:var(--green);min-height:16px;align-self:center}
+.note.err{color:var(--red)}
+
+/* empty + loading */
+.empty{text-align:center;padding:64px 20px;color:var(--dim)}
+.empty .icon{font-size:30px;margin-bottom:14px;opacity:.5}
+.empty h3{font-weight:600;font-size:16px;color:var(--ink);margin-bottom:7px}
+.empty p{font-size:13px;color:var(--faint);max-width:340px;margin:0 auto}
+.skel{height:54px;border-radius:13px;margin-bottom:10px;
+  background:linear-gradient(90deg,var(--panel) 25%,var(--panel-2) 37%,var(--panel) 63%);
+  background-size:400% 100%;animation:sh 1.3s ease-in-out infinite}
+@keyframes sh{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.banner{display:none;margin-bottom:16px;padding:10px 14px;border-radius:9px;font-size:12.5px;
+  background:rgba(240,96,122,.10);border:1px solid rgba(240,96,122,.34);color:#ffb3c1}
+.banner.show{display:block}
+footer{text-align:center;color:var(--faint);font-size:11px;padding:20px;letter-spacing:.04em}
+footer a{color:var(--dim);text-decoration:none}
+footer a:hover{color:var(--cyan)}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand"><span class="dot"></span><b>SKIPPER</b>&nbsp;<span>/ dashboard</span></div>
+    <div class="views">
+      <button id="v-tasks" class="active" data-view="tasks">Tasks</button>
+      <button id="v-ent" data-view="entities">Entities</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="count" id="count"></div>
+  </div>
+</header>
+
+<main>
+  <div class="banner" id="banner"></div>
+  <div id="filters" class="filters"></div>
+  <div id="content"></div>
+</main>
+
+<footer>
+  Skipper Default · <span id="ver">v1.0.0</span> · <a id="cfg-link" href="#">change dashboard ↗</a>
+</footer>
+
+<script>
+"use strict";
+
+// ── API base ──────────────────────────────────────────
+// ?api=http://localhost:1776 when loaded from file://; same-origin at /dashboard.
+const API = (new URLSearchParams(location.search).get("api") || "").replace(/\/$/, "");
+const url = (p) => API + p;
+
+const TASK_STATUSES = ["pending", "active", "complete", "escalated", "cancelled"];
+const STATUS_CYCLE = { pending: "active", active: "complete", complete: "pending" };
+const ENTITY_ORDER = ["PERSON", "ORG", "PLACE", "CONCEPT", "EVENT", "OTHER"];
+
+const state = { view: "tasks", filter: "all", tasks: [], entities: [], open: new Set() };
+
+const $ = (s, r = document) => r.querySelector(s);
+const el = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+const esc = (s) => (s == null ? "" : String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
+const shortId = (id) => (id ? String(id).slice(0, 8) : "—");
+
+async function api(path, opts) {
+  const r = await fetch(url(path), opts);
+  if (!r.ok) {
+    let detail = r.status + " " + r.statusText;
+    try { const j = await r.json(); if (j && j.detail) detail = j.detail; } catch (e) {}
+    throw new Error(detail);
+  }
+  return r.status === 204 ? null : r.json();
+}
+
+function banner(msg) {
+  const b = $("#banner");
+  if (!msg) { b.classList.remove("show"); return; }
+  b.textContent = msg; b.classList.add("show");
+}
+
+// ── Loading ───────────────────────────────────────────
+async function load() {
+  banner("");
+  $("#content").innerHTML = '<div class="skel"></div><div class="skel"></div><div class="skel"></div>';
+  try {
+    const [tasks, entities] = await Promise.all([api("/api/tasks"), api("/api/entities")]);
+    state.tasks = tasks || [];
+    state.entities = entities || [];
+    render();
+  } catch (e) {
+    banner("Can't reach Skipper's kernel — " + e.message + ". Is it running?");
+    $("#content").innerHTML = "";
+    renderEmpty(state.view === "tasks" ? "tasks" : "entities", true);
+  }
+}
+
+// ── Render: shell ─────────────────────────────────────
+function render() {
+  // view buttons
+  $("#v-tasks").className = state.view === "tasks" ? "active" : "";
+  $("#v-ent").className = state.view === "entities" ? "active ent" : "";
+  // counts
+  $("#count").innerHTML = state.view === "tasks"
+    ? `<b>${state.tasks.length}</b> task${state.tasks.length === 1 ? "" : "s"}`
+    : `<b>${state.entities.length}</b> entit${state.entities.length === 1 ? "y" : "ies"}`;
+  renderFilters();
+  if (state.view === "tasks") renderTasks(); else renderEntities();
+}
+
+function renderFilters() {
+  const f = $("#filters");
+  if (state.view !== "tasks") { f.innerHTML = ""; return; }
+  const counts = state.tasks.reduce((a, t) => ((a[t.status] = (a[t.status] || 0) + 1), a), {});
+  const opts = ["all", ...TASK_STATUSES];
+  f.innerHTML = opts.map((s) => {
+    const n = s === "all" ? state.tasks.length : (counts[s] || 0);
+    return `<button class="${state.filter === s ? "on" : ""}" data-filter="${s}">${s}${n ? ` · ${n}` : ""}</button>`;
+  }).join("");
+}
+
+// ── Render: tasks ─────────────────────────────────────
+function renderTasks() {
+  const c = $("#content");
+  let tasks = state.tasks;
+  if (state.filter !== "all") tasks = tasks.filter((t) => t.status === state.filter);
+  if (!tasks.length) { renderEmpty("tasks"); return; }
+  c.innerHTML = "";
+
+  if (state.filter === "all") {
+    // parent/child grouping
+    const byId = new Map(state.tasks.map((t) => [t.id, t]));
+    const roots = tasks.filter((t) => !t.parent_task_id || !byId.has(t.parent_task_id));
+    const kids = (pid) => state.tasks.filter((t) => t.parent_task_id === pid);
+    roots.forEach((t) => {
+      c.appendChild(taskCard(t, false));
+      kids(t.id).forEach((k) => c.appendChild(taskCard(k, true)));
+    });
+  } else {
+    tasks.forEach((t) => c.appendChild(taskCard(t, false)));
+  }
+}
+
+function taskCard(t, isChild) {
+  const open = state.open.has(t.id);
+  const linkedEnts = state.entities.filter((e) => e.source_type === "task" && e.source_id === t.id);
+  const card = el(`<div class="card ${isChild ? "child" : ""} ${open ? "open" : ""}" data-id="${t.id}" data-kind="task"></div>`);
+  card.appendChild(el(`
+    <div class="row" data-act="toggle">
+      <span class="caret">▶</span>
+      <span class="title">${esc(t.title)}${t.description ? `<span class="sub">${esc(t.description)}</span>` : ""}</span>
+      <span class="badge tap s-${esc(t.status)}" data-act="cycle" title="click to advance status">${esc(t.status)}</span>
+    </div>`));
+
+  const stepOpts = ["autonomous", "breakpoint", "handoff", "conditional"]
+    .map((s) => `<option value="${s}" ${t.step_type === s ? "selected" : ""}>${s}</option>`).join("");
+  const linkedHtml = linkedEnts.length
+    ? `<div class="linked"><div class="lh">Linked entities</div>${linkedEnts.map((e) =>
+        `<span class="chip ent">${esc(e.surface_form)} <span class="mini">${esc(e.entity_type)}</span></span>`).join("")}</div>`
+    : "";
+
+  card.appendChild(el(`
+    <div class="body">
+      <div class="meta">
+        <span><span class="k">id</span><span class="mono">${shortId(t.id)}</span></span>
+        <span><span class="k">step</span>${esc(t.step_type)}</span>
+        ${t.goal_id ? `<span><span class="k">goal</span><span class="mono">${shortId(t.goal_id)}</span></span>` : ""}
+        <span><span class="k">created</span>${esc((t.created_at || "").replace("T", " ").slice(0, 16))}</span>
+      </div>
+      ${linkedHtml}
+      <div class="edit">
+        <div><label>Title</label><input data-f="title" value="${esc(t.title)}"></div>
+        <div><label>Description</label><textarea data-f="description" rows="3">${esc(t.description || "")}</textarea></div>
+        <div><label>Step type</label><select data-f="step_type">${stepOpts}</select></div>
+      </div>
+      <div class="acts">
+        <button class="btn primary" data-act="save">Save changes</button>
+        <span class="flex-sp"></span>
+        <span class="note" data-role="note"></span>
+        <button class="btn danger" data-act="del">Delete</button>
+      </div>
+    </div>`));
+  return card;
+}
+
+// ── Render: entities ──────────────────────────────────
+function renderEntities() {
+  const c = $("#content");
+  if (!state.entities.length) { renderEmpty("entities"); return; }
+  c.innerHTML = "";
+  const groups = {};
+  state.entities.forEach((e) => { (groups[e.entity_type] = groups[e.entity_type] || []).push(e); });
+  const order = [...ENTITY_ORDER.filter((t) => groups[t]), ...Object.keys(groups).filter((t) => !ENTITY_ORDER.includes(t))];
+  order.forEach((type) => {
+    c.appendChild(el(`<div class="group-h">${esc(type)}<span class="n">${groups[type].length}</span></div>`));
+    groups[type].forEach((e) => c.appendChild(entityCard(e)));
+  });
+}
+
+function entityCard(e) {
+  const open = state.open.has(e.id);
+  const conf = e.confidence != null ? Math.round(e.confidence * 100) + "%" : "";
+  const card = el(`<div class="card ${open ? "open" : ""}" data-id="${e.id}" data-kind="entity"></div>`);
+  card.appendChild(el(`
+    <div class="row" data-act="toggle">
+      <span class="caret">▶</span>
+      <span class="etype">${esc(e.entity_type)}</span>
+      <span class="title">${esc(e.surface_form)}${e.canonical_form && e.canonical_form !== e.surface_form ? `<span class="sub">→ ${esc(e.canonical_form)}</span>` : ""}</span>
+      ${conf ? `<span class="conf mono">${conf}</span>` : ""}
+    </div>`));
+
+  const typeOpts = ENTITY_ORDER.map((t) => `<option value="${t}" ${e.entity_type === t ? "selected" : ""}>${t}</option>`).join("");
+  card.appendChild(el(`
+    <div class="body">
+      <div class="meta">
+        <span><span class="k">id</span><span class="mono">${shortId(e.id)}</span></span>
+        ${e.source_type ? `<span><span class="k">source</span>${esc(e.source_type)}${e.source_id ? " · " + shortId(e.source_id) : ""}</span>` : ""}
+        <span><span class="k">conf</span>${conf || "—"}</span>
+      </div>
+      <div class="linked" data-role="linked"><div class="lh">Linked tasks</div><span class="conf">loading…</span></div>
+      <div class="edit">
+        <div><label>Surface form</label><input data-f="surface_form" value="${esc(e.surface_form)}"></div>
+        <div><label>Canonical form</label><input data-f="canonical_form" value="${esc(e.canonical_form || "")}" placeholder="normalized / resolved form"></div>
+        <div><label>Type</label><select data-f="entity_type">${typeOpts}</select></div>
+      </div>
+      <div class="acts">
+        <button class="btn primary ent" data-act="save">Save changes</button>
+        <span class="flex-sp"></span>
+        <span class="note" data-role="note"></span>
+        <button class="btn danger" data-act="del">Delete</button>
+      </div>
+    </div>`));
+  return card;
+}
+
+function renderEmpty(kind, isError) {
+  if (isError) {
+    $("#content").innerHTML = `<div class="empty"><div class="icon">⚠</div><h3>Nothing to show</h3>
+      <p>Skipper's kernel isn't reachable. Start it and this will fill in.</p></div>`;
+    return;
+  }
+  if (kind === "tasks") {
+    const filtered = state.filter !== "all";
+    $("#content").innerHTML = `<div class="empty"><div class="icon">◇</div>
+      <h3>${filtered ? "No " + esc(state.filter) + " tasks" : "No tasks yet"}</h3>
+      <p>${filtered ? "Nothing in this state right now." : "Skipper is waiting for a goal. Give it one in chat and tasks will appear here."}</p></div>`;
+  } else {
+    $("#content").innerHTML = `<div class="empty"><div class="icon">◈</div><h3>No entities yet</h3>
+      <p>People, places, and organizations Skipper notices in conversation will collect here.</p></div>`;
+  }
+}
+
+// ── Linked tasks (lazy, on entity expand) ─────────────
+async function loadLinked(card, id) {
+  const slot = $('[data-role="linked"]', card);
+  if (!slot || slot.dataset.done) return;
+  try {
+    const data = await api("/api/entities/" + encodeURIComponent(id) + "/linked");
+    const tasks = (data && data.linked_tasks) || [];
+    slot.dataset.done = "1";
+    slot.innerHTML = tasks.length
+      ? `<div class="lh">Linked tasks</div>` + tasks.map((t) =>
+          `<span class="chip task">${esc(t.title)} <span class="mini">${esc(t.status)}</span></span>`).join("")
+      : `<div class="lh">Linked tasks</div><span class="conf">none</span>`;
+  } catch (e) {
+    slot.innerHTML = `<div class="lh">Linked tasks</div><span class="conf">—</span>`;
+  }
+}
+
+// ── Interaction ───────────────────────────────────────
+document.addEventListener("click", async (ev) => {
+  // view switch
+  const vb = ev.target.closest(".views button");
+  if (vb) { state.view = vb.dataset.view; render(); return; }
+  // filters
+  const fb = ev.target.closest("#filters button");
+  if (fb) { state.filter = fb.dataset.filter; render(); return; }
+  // config link
+  if (ev.target.id === "cfg-link") { ev.preventDefault(); location.href = url("/config"); return; }
+
+  const card = ev.target.closest(".card");
+  if (!card) return;
+  const id = card.dataset.id, kind = card.dataset.kind;
+  const act = (ev.target.closest("[data-act]") || {}).dataset ? ev.target.closest("[data-act]").dataset.act : null;
+
+  // status cycle (don't toggle the card)
+  if (act === "cycle") {
+    ev.stopPropagation();
+    const cur = card.querySelector(".badge").textContent.trim();
+    const next = STATUS_CYCLE[cur] || "pending";
+    await patchStatus(card, id, next);
+    return;
+  }
+  // expand / collapse
+  if (act === "toggle") {
+    if (state.open.has(id)) { state.open.delete(id); card.classList.remove("open"); }
+    else {
+      state.open.add(id); card.classList.add("open");
+      if (kind === "entity") loadLinked(card, id);
+    }
+    return;
+  }
+  if (act === "save") { ev.stopPropagation(); await saveCard(card, id, kind); return; }
+  if (act === "del") { ev.stopPropagation(); armDelete(card, id, kind, ev.target); return; }
+  if (act === "del-confirm") { ev.stopPropagation(); await doDelete(card, id, kind); return; }
+  if (act === "del-cancel") { ev.stopPropagation(); restoreDelete(card); return; }
+});
+
+function setNote(card, msg, isErr) {
+  const n = $('[data-role="note"]', card);
+  if (n) { n.textContent = msg || ""; n.className = "note" + (isErr ? " err" : ""); }
+}
+
+async function patchStatus(card, id, status) {
+  const badge = card.querySelector(".badge");
+  const prev = badge.textContent.trim();
+  badge.textContent = status; badge.className = "badge tap s-" + status;
+  try {
+    const updated = await api("/api/tasks/" + encodeURIComponent(id), {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    const t = state.tasks.find((x) => x.id === id);
+    if (t) Object.assign(t, updated);
+    renderFilters();
+  } catch (e) {
+    badge.textContent = prev; badge.className = "badge tap s-" + prev;
+    banner("Couldn't update status — " + e.message);
+  }
+}
+
+async function saveCard(card, id, kind) {
+  const patch = {};
+  card.querySelectorAll("[data-f]").forEach((inp) => { patch[inp.dataset.f] = inp.value; });
+  setNote(card, "Saving…");
+  try {
+    const path = (kind === "task" ? "/api/tasks/" : "/api/entities/") + encodeURIComponent(id);
+    const updated = await api(path, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    });
+    const list = kind === "task" ? state.tasks : state.entities;
+    const obj = list.find((x) => x.id === id);
+    if (obj) Object.assign(obj, updated);
+    setNote(card, "Saved ✓");
+    // refresh the visible header text without collapsing
+    const title = card.querySelector(".title");
+    if (title) {
+      if (kind === "task") {
+        title.innerHTML = esc(updated.title) + (updated.description ? `<span class="sub">${esc(updated.description)}</span>` : "");
+      } else {
+        title.innerHTML = esc(updated.surface_form) + (updated.canonical_form && updated.canonical_form !== updated.surface_form ? `<span class="sub">→ ${esc(updated.canonical_form)}</span>` : "");
+      }
+    }
+    if (kind === "task") { const b = card.querySelector(".badge"); if (b) { b.textContent = updated.status; b.className = "badge tap s-" + updated.status; } }
+    setTimeout(() => setNote(card, ""), 2200);
+  } catch (e) { setNote(card, e.message, true); }
+}
+
+function armDelete(card, id, kind, btn) {
+  const acts = btn.parentElement;
+  acts.dataset.saved = btn.outerHTML;
+  btn.outerHTML = `<button class="btn ghost" data-act="del-cancel">Cancel</button>
+    <button class="btn confirm" data-act="del-confirm">Confirm delete</button>`;
+}
+function restoreDelete(card) {
+  const acts = $(".acts", card);
+  if (acts && acts.dataset.saved) {
+    acts.querySelectorAll('[data-act="del-cancel"],[data-act="del-confirm"]').forEach((n) => n.remove());
+    acts.insertAdjacentHTML("beforeend", acts.dataset.saved);
+    delete acts.dataset.saved;
+  }
+}
+async function doDelete(card, id, kind) {
+  setNote(card, "Deleting…");
+  try {
+    await api((kind === "task" ? "/api/tasks/" : "/api/entities/") + encodeURIComponent(id), { method: "DELETE" });
+    if (kind === "task") state.tasks = state.tasks.filter((x) => x.id !== id);
+    else state.entities = state.entities.filter((x) => x.id !== id);
+    state.open.delete(id);
+    card.style.transition = "opacity .18s, transform .18s";
+    card.style.opacity = "0"; card.style.transform = "translateX(-8px)";
+    setTimeout(render, 170);
+  } catch (e) { setNote(card, e.message, true); }
+}
+
+// ── Boot ──────────────────────────────────────────────
+load();
+</script>
+</body>
+</html>

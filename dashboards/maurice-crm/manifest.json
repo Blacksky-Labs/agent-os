@@ -1,0 +1,12 @@
+{
+  "id": "maurice-crm",
+  "name": "Maurice CRM",
+  "version": "0.1.0",
+  "description": "Lead pipeline dashboard for Maurice. Present only to verify the compatible_agents filter — must NOT appear in Skipper's picker.",
+  "author": "Blacksky Labs",
+  "compatible_agents": ["maurice"],
+  "entry_point": "index.html",
+  "views": ["leads"],
+  "requires_api_version": "1.0.0",
+  "preview_color": "#1E140A"
+}

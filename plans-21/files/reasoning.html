@@ -1,0 +1,1968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reasoning Layer — AgentOS · Blacksky Labs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --black: #060608;
+    --off-black: #0c0c10;
+    --panel: #101014;
+    --border: #1a1a22;
+    --border-light: #262630;
+    --white: #f0eeea;
+    --white-dim: #9a968f;
+    --white-faint: #32302e;
+    --ao-green: #c8f060;
+    --context: #a0c8ff;
+    --sentiment: #ffb060;
+    --cron: #c8f060;
+    --identity: #d0a0ff;
+    --phone: #60f0c0;
+    --grid: rgba(255,255,255,0.018);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 48px;
+    height: 64px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(6,6,8,0.94);
+    backdrop-filter: blur(16px);
+  }
+
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .nav-back {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    color: var(--white-dim);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding-right: 24px;
+    border-right: 1px solid var(--border);
+    margin-right: 24px;
+    transition: color 0.2s;
+  }
+
+  .nav-back:hover { color: var(--white); }
+  .nav-back::before { content: '←'; margin-right: 4px; }
+
+  .nav-logo-text {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--white-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+
+  .nav-logo-text span { color: var(--ao-green); }
+
+  .nav-chapter {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--white-faint);
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+  }
+
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 28px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    color: var(--white-dim);
+    text-decoration: none;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--white); }
+
+  /* HERO */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 120px 48px 80px;
+    overflow: hidden;
+    z-index: 1;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ANIMATED BRAIN VISUALIZATION */
+  .hero-visual {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .pulse-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(160,200,255,0.08);
+    top: 30%;
+    right: 5%;
+    transform: translate(0, -50%);
+    animation: expandRing 4s ease-out infinite;
+  }
+
+  .pulse-ring:nth-child(1) { width: 300px; height: 300px; animation-delay: 0s; }
+  .pulse-ring:nth-child(2) { width: 500px; height: 500px; animation-delay: 1s; border-color: rgba(160,200,255,0.05); }
+  .pulse-ring:nth-child(3) { width: 700px; height: 700px; animation-delay: 2s; border-color: rgba(160,200,255,0.03); }
+  .pulse-ring:nth-child(4) { width: 900px; height: 900px; animation-delay: 3s; border-color: rgba(160,200,255,0.02); }
+
+  @keyframes expandRing {
+    0%   { opacity: 1; transform: scale(0.5); }
+    100% { opacity: 0; transform: scale(1.2); }
+  }
+
+  /* Signal nodes */
+  .signal-nodes {
+    position: absolute;
+    top: 15%;
+    right: 8%;
+    width: 420px;
+    height: 420px;
+  }
+
+  .snode {
+    position: absolute;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    letter-spacing: 0.15em;
+    font-family: 'DM Mono', monospace;
+    animation: nodeFloat 6s ease-in-out infinite;
+  }
+
+  .snode-context {
+    width: 80px; height: 36px;
+    background: rgba(160,200,255,0.08);
+    border: 1px solid rgba(160,200,255,0.2);
+    color: var(--context);
+    top: 10%; left: 30%;
+    animation-delay: 0s;
+  }
+
+  .snode-sentiment {
+    width: 88px; height: 36px;
+    background: rgba(255,176,96,0.08);
+    border: 1px solid rgba(255,176,96,0.2);
+    color: var(--sentiment);
+    top: 40%; left: 60%;
+    animation-delay: 1.5s;
+  }
+
+  .snode-cron {
+    width: 72px; height: 36px;
+    background: rgba(200,240,96,0.08);
+    border: 1px solid rgba(200,240,96,0.2);
+    color: var(--cron);
+    top: 65%; left: 20%;
+    animation-delay: 0.8s;
+  }
+
+  .snode-identity {
+    width: 80px; height: 36px;
+    background: rgba(208,160,255,0.08);
+    border: 1px solid rgba(208,160,255,0.2);
+    color: var(--identity);
+    top: 25%; left: 65%;
+    animation-delay: 2.2s;
+  }
+
+  .snode-phone {
+    width: 72px; height: 36px;
+    background: rgba(96,240,192,0.08);
+    border: 1px solid rgba(96,240,192,0.2);
+    color: var(--phone);
+    top: 75%; left: 55%;
+    animation-delay: 3s;
+  }
+
+  /* Connecting lines between nodes */
+  .signal-lines {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+  }
+
+  @keyframes nodeFloat {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-8px); }
+  }
+
+  .hero-eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--context);
+    margin-bottom: 28px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .hero-eyebrow::before {
+    content: '';
+    width: 32px; height: 1px;
+    background: var(--context);
+    display: inline-block;
+  }
+
+  .hero-headline {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: clamp(48px, 6.5vw, 88px);
+    line-height: 0.95;
+    letter-spacing: -0.025em;
+    max-width: 780px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.4s;
+  }
+
+  .hero-headline .hl-dim { color: var(--white-dim); font-weight: 300; font-family: 'Fraunces', serif; font-style: italic; }
+  .hero-headline .hl-context   { color: var(--context); }
+  .hero-headline .hl-sentiment { color: var(--sentiment); }
+  .hero-headline .hl-cron      { color: var(--cron); }
+
+  .hero-sub {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: clamp(16px, 1.8vw, 22px);
+    color: var(--white-dim);
+    max-width: 580px;
+    margin-top: 32px;
+    line-height: 1.55;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.6s;
+  }
+
+  .hero-meta {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    margin-top: 52px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.8s;
+    flex-wrap: wrap;
+  }
+
+  .hero-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--white-dim);
+    letter-spacing: 0.08em;
+  }
+
+  .meta-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* LAYER NAV (sticky sidebar concept, simplified to top sticky) */
+  .layer-nav {
+    position: sticky;
+    top: 64px;
+    z-index: 50;
+    background: rgba(6,6,8,0.96);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 48px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+  }
+
+  .layer-nav-item {
+    padding: 16px 24px;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--white-faint);
+    text-decoration: none;
+    border-right: 1px solid var(--border);
+    white-space: nowrap;
+    transition: color 0.2s, background 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .layer-nav-item:hover { color: var(--white-dim); background: rgba(255,255,255,0.02); }
+  .layer-nav-item:first-child { border-left: none; }
+
+  .layer-nav-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* SECTIONS */
+  .reasoning-section {
+    position: relative;
+    z-index: 1;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-inner {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    min-height: 600px;
+  }
+
+  .section-left {
+    padding: 72px 48px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: sticky;
+    top: 113px;
+    height: fit-content;
+  }
+
+  .section-number {
+    font-family: 'Syne', sans-serif;
+    font-size: 80px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    margin-bottom: 24px;
+    opacity: 0.12;
+  }
+
+  .section-tag {
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-tag-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 2.5vw, 38px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 20px;
+  }
+
+  .section-desc {
+    font-size: 12px;
+    color: var(--white-dim);
+    line-height: 1.9;
+    margin-bottom: 32px;
+  }
+
+  .section-swappable {
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--white-faint);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    width: fit-content;
+  }
+
+  .section-swappable::before {
+    content: '⟳';
+    font-size: 11px;
+    color: var(--ao-green);
+  }
+
+  .section-right {
+    padding: 72px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  /* CONTEXT ENGINE */
+  .context-timeline {
+    border: 1px solid var(--border);
+    background: var(--off-black);
+    overflow: hidden;
+  }
+
+  .timeline-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--panel);
+  }
+
+  .timeline-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--white-dim);
+  }
+
+  .thl-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--context);
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  .timeline-label {
+    font-size: 9px;
+    color: var(--white-faint);
+    letter-spacing: 0.1em;
+  }
+
+  .timeline-events {
+    padding: 0;
+  }
+
+  .timeline-event {
+    display: grid;
+    grid-template-columns: 80px 24px 1fr;
+    align-items: start;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    gap: 16px;
+    transition: background 0.2s;
+  }
+
+  .timeline-event:last-child { border-bottom: none; }
+  .timeline-event:hover { background: rgba(160,200,255,0.03); }
+
+  .te-time {
+    font-size: 10px;
+    color: var(--white-faint);
+    letter-spacing: 0.08em;
+    padding-top: 2px;
+  }
+
+  .te-icon-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    padding-top: 4px;
+  }
+
+  .te-icon {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 7px;
+    flex-shrink: 0;
+    background: var(--panel);
+  }
+
+  .te-line {
+    width: 1px;
+    flex: 1;
+    background: var(--border);
+    min-height: 24px;
+  }
+
+  .te-content {}
+
+  .te-channel {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .te-channel.ch-web   { color: var(--context); }
+  .te-channel.ch-phone { color: var(--phone); }
+  .te-channel.ch-chat  { color: var(--sentiment); }
+  .te-channel.ch-cron  { color: var(--cron); }
+
+  .te-desc {
+    font-size: 11px;
+    color: var(--white-dim);
+    line-height: 1.6;
+  }
+
+  .te-signal {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    margin-top: 6px;
+  }
+
+  .sig-hot   { background: rgba(255,176,96,0.1);  color: var(--sentiment); border: 1px solid rgba(255,176,96,0.2); }
+  .sig-match { background: rgba(96,240,192,0.1);  color: var(--phone);     border: 1px solid rgba(96,240,192,0.2); }
+  .sig-pred  { background: rgba(200,240,96,0.1);  color: var(--cron);      border: 1px solid rgba(200,240,96,0.2); }
+  .sig-new   { background: rgba(160,200,255,0.1); color: var(--context);   border: 1px solid rgba(160,200,255,0.2); }
+
+  .context-profile {
+    border: 1px solid var(--border);
+    background: var(--off-black);
+    padding: 28px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .profile-header {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  .profile-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .profile-score {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--sentiment);
+  }
+
+  .score-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+  }
+
+  .profile-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .ps-label {
+    font-size: 9px;
+    color: var(--white-faint);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .ps-value {
+    font-size: 12px;
+    color: var(--white-dim);
+  }
+
+  .ps-value.psv-hot    { color: var(--sentiment); }
+  .ps-value.psv-match  { color: var(--phone); }
+  .ps-value.psv-pred   { color: var(--cron); }
+  .ps-value.psv-ctx    { color: var(--context); }
+
+  /* SENTIMENT ENGINE */
+  .sentiment-display {
+    border: 1px solid var(--border);
+    background: var(--off-black);
+    overflow: hidden;
+  }
+
+  .sentiment-display-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sdh-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--white-dim);
+  }
+
+  .sdh-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--sentiment);
+    animation: blink 1.5s ease-in-out infinite;
+  }
+
+  .sentiment-rows {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sentiment-row {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 20px;
+    align-items: start;
+    transition: background 0.2s;
+  }
+
+  .sentiment-row:last-child { border-bottom: none; }
+  .sentiment-row:hover { background: rgba(255,176,96,0.02); }
+
+  .sr-quote {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--white-dim);
+    line-height: 1.6;
+    margin-bottom: 10px;
+  }
+
+  .sr-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .sr-tag {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 2px;
+    border: 1px solid;
+  }
+
+  .tag-positive  { color: var(--phone);   border-color: rgba(96,240,192,0.3);  background: rgba(96,240,192,0.06);  }
+  .tag-negative  { color: #ff8080;         border-color: rgba(255,128,128,0.3); background: rgba(255,128,128,0.06); }
+  .tag-budget    { color: var(--cron);    border-color: rgba(200,240,96,0.3);  background: rgba(200,240,96,0.06);  }
+  .tag-timeline  { color: var(--context); border-color: rgba(160,200,255,0.3); background: rgba(160,200,255,0.06); }
+  .tag-objection { color: var(--sentiment);border-color: rgba(255,176,96,0.3); background: rgba(255,176,96,0.06);  }
+  .tag-intent    { color: var(--identity); border-color: rgba(208,160,255,0.3); background: rgba(208,160,255,0.06); }
+
+  .sr-meter {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    min-width: 80px;
+  }
+
+  .sr-score-label { font-size: 9px; color: var(--white-faint); letter-spacing: 0.1em; }
+  .sr-score-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .sr-bar-wrap {
+    width: 80px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .sr-bar {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--sentiment);
+    transition: width 0.5s ease;
+  }
+
+  /* CRON JOBS */
+  .cron-builder {
+    border: 1px solid var(--border);
+    background: var(--off-black);
+    overflow: hidden;
+  }
+
+  .cron-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .cron-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--white-dim);
+  }
+
+  .cron-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--cron);
+  }
+
+  .cron-new-btn {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--cron);
+    border: 1px solid rgba(200,240,96,0.25);
+    background: rgba(200,240,96,0.06);
+    padding: 5px 12px;
+    border-radius: 2px;
+    cursor: pointer;
+  }
+
+  .cron-jobs-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .cron-job {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 20px;
+    transition: background 0.2s;
+  }
+
+  .cron-job:last-child { border-bottom: none; }
+  .cron-job:hover { background: rgba(200,240,96,0.02); }
+
+  .cj-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .cj-desc {
+    font-size: 11px;
+    color: var(--white-faint);
+    letter-spacing: 0.06em;
+  }
+
+  .cj-schedule {
+    font-size: 10px;
+    color: var(--cron);
+    letter-spacing: 0.08em;
+    text-align: right;
+    padding: 4px 10px;
+    border: 1px solid rgba(200,240,96,0.2);
+    border-radius: 2px;
+    background: rgba(200,240,96,0.05);
+    white-space: nowrap;
+  }
+
+  .cj-toggle {
+    width: 36px; height: 20px;
+    background: rgba(200,240,96,0.3);
+    border-radius: 10px;
+    position: relative;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+
+  .cj-toggle::after {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--cron);
+    top: 3px; right: 3px;
+    transition: right 0.2s;
+  }
+
+  .cj-toggle.off {
+    background: var(--border);
+  }
+
+  .cj-toggle.off::after {
+    background: var(--white-faint);
+    right: 19px;
+  }
+
+  .cron-output {
+    border: 1px solid var(--border);
+    border-top: none;
+    background: var(--panel);
+    padding: 20px 24px;
+  }
+
+  .co-label {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--white-faint);
+    margin-bottom: 14px;
+  }
+
+  .co-summary {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--white-dim);
+    line-height: 1.8;
+    padding: 16px 20px;
+    border: 1px solid rgba(200,240,96,0.1);
+    background: rgba(200,240,96,0.03);
+    border-radius: 2px;
+    position: relative;
+  }
+
+  .co-summary::before {
+    content: 'LAST RUN: 2:14 AM';
+    position: absolute;
+    top: -1px; right: 12px;
+    transform: translateY(-50%);
+    font-family: 'DM Mono', monospace;
+    font-style: normal;
+    font-size: 8px;
+    letter-spacing: 0.15em;
+    color: var(--cron);
+    background: var(--panel);
+    padding: 0 6px;
+  }
+
+  /* IDENTITY LAYER */
+  .identity-flow {
+    border: 1px solid var(--border);
+    background: var(--off-black);
+    overflow: hidden;
+  }
+
+  .identity-states {
+    display: grid;
+    grid-template-columns: 1fr 48px 1fr 48px 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .identity-state {
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .identity-state:nth-child(1) { border-right: none; }
+  .identity-state:nth-child(3) { border-left: none; border-right: none; }
+  .identity-state:nth-child(5) { border-left: none; }
+
+  .is-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--white-faint);
+    font-size: 14px;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+
+  .is-stage {
+    font-size: 8px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .is-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .is-desc {
+    font-size: 10px;
+    color: var(--white-faint);
+    line-height: 1.6;
+  }
+
+  .is-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 2px;
+    width: fit-content;
+    margin-top: 4px;
+  }
+
+  .badge-cookie   { background: rgba(208,160,255,0.1); color: var(--identity); border: 1px solid rgba(208,160,255,0.2); }
+  .badge-optional { background: rgba(160,200,255,0.1); color: var(--context);  border: 1px solid rgba(160,200,255,0.2); }
+  .badge-full     { background: rgba(200,240,96,0.1);  color: var(--cron);     border: 1px solid rgba(200,240,96,0.2);  }
+
+  .identity-merge {
+    padding: 20px 24px;
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .merge-icon {
+    width: 32px; height: 32px;
+    background: rgba(208,160,255,0.1);
+    border: 1px solid rgba(208,160,255,0.2);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .merge-text { font-size: 11px; color: var(--white-dim); line-height: 1.6; }
+  .merge-text strong { color: var(--identity); font-weight: 500; }
+
+  .auth-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-top: 1px solid var(--border);
+  }
+
+  .auth-option {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: background 0.2s;
+    cursor: pointer;
+  }
+
+  .auth-option:first-child { border-right: 1px solid var(--border); }
+  .auth-option:hover { background: rgba(208,160,255,0.03); }
+
+  .ao-icon {
+    width: 36px; height: 36px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    margin-bottom: 4px;
+    border: 1px solid var(--border-light);
+    background: var(--panel);
+  }
+
+  .ao-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .ao-desc { font-size: 11px; color: var(--white-faint); line-height: 1.6; }
+
+  /* PHONE LAYER */
+  .phone-display {
+    border: 1px solid var(--border);
+    background: var(--off-black);
+    overflow: hidden;
+  }
+
+  .phone-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .ph-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--white-dim);
+  }
+
+  .ph-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--phone);
+    animation: blink 1s ease-in-out infinite;
+  }
+
+  .ph-live { font-size: 9px; color: var(--phone); letter-spacing: 0.15em; }
+
+  .phone-transcript {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .pt-line {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .pt-speaker {
+    font-size: 9px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding-top: 2px;
+  }
+
+  .pt-speaker.caller  { color: var(--white-faint); }
+  .pt-speaker.entity  { color: var(--phone); }
+
+  .pt-text {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--white-dim);
+    line-height: 1.6;
+  }
+
+  .pt-extraction {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .phone-crm-update {
+    margin: 0 24px 24px;
+    padding: 16px 20px;
+    border: 1px solid rgba(96,240,192,0.15);
+    background: rgba(96,240,192,0.04);
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    border-radius: 2px;
+  }
+
+  .pcu-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .pcu-text { font-size: 11px; color: var(--white-dim); line-height: 1.7; }
+  .pcu-text strong { color: var(--phone); font-weight: 500; }
+
+  /* SHARED CALLOUT */
+  .swappable-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 20px 24px;
+    border: 1px solid var(--border-light);
+    background: rgba(255,255,255,0.01);
+    border-radius: 3px;
+  }
+
+  .sn-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .sn-text { font-size: 11px; color: var(--white-dim); line-height: 1.7; }
+  .sn-text strong { color: var(--ao-green); font-weight: 500; }
+
+  /* SUMMARY ROW */
+  .reasoning-summary {
+    position: relative;
+    z-index: 1;
+    padding: 80px 48px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .rs-label {
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--white-faint);
+    margin-bottom: 48px;
+  }
+
+  .rs-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+
+  .rs-cell {
+    background: var(--off-black);
+    padding: 28px 24px;
+    transition: background 0.3s;
+  }
+
+  .rs-cell:hover { background: var(--panel); }
+
+  .rsc-color {
+    width: 24px; height: 3px;
+    border-radius: 2px;
+    margin-bottom: 16px;
+  }
+
+  .rsc-name {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .rsc-desc {
+    font-size: 11px;
+    color: var(--white-faint);
+    line-height: 1.65;
+  }
+
+  /* CTA */
+  .reasoning-cta {
+    position: relative;
+    z-index: 1;
+    padding: 100px 48px;
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .rcta-bg {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 50% 70% at 50% 100%, rgba(160,200,255,0.04) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .rcta-inner { max-width: 640px; margin: 0 auto; position: relative; }
+
+  .rcta-eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--context);
+    margin-bottom: 24px;
+  }
+
+  .rcta-headline {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(32px, 4vw, 54px);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+    margin-bottom: 20px;
+  }
+
+  .rcta-sub {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--white-dim);
+    margin-bottom: 44px;
+    line-height: 1.55;
+  }
+
+  .rcta-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    background: var(--white);
+    color: var(--black);
+    padding: 13px 30px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    border-radius: 2px;
+    transition: background 0.2s, transform 0.2s;
+  }
+
+  .btn-primary:hover { background: var(--ao-green); transform: translateY(-1px); }
+
+  .btn-outline {
+    color: var(--white-dim);
+    padding: 13px 30px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-decoration: none;
+    border: 1px solid var(--border-light);
+    border-radius: 2px;
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .btn-outline:hover { color: var(--white); border-color: var(--white-dim); }
+
+  /* FOOTER */
+  footer {
+    position: relative;
+    z-index: 1;
+    border-top: 1px solid var(--border);
+    padding: 36px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  .footer-brand {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .footer-brand span { color: var(--ao-green); }
+  .footer-copy { font-size: 10px; color: var(--white-faint); }
+
+  .footer-links { display: flex; gap: 20px; flex-wrap: wrap; }
+
+  .footer-links a {
+    font-size: 10px;
+    color: var(--white-faint);
+    text-decoration: none;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+
+  .footer-links a:hover { color: var(--white); }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 960px) {
+    nav { padding: 0 20px; }
+    .nav-links { display: none; }
+    .hero { padding: 100px 24px 60px; }
+    .signal-nodes { display: none; }
+    .pulse-ring { display: none; }
+    .layer-nav { padding: 0 24px; }
+    .reasoning-section .section-inner { grid-template-columns: 1fr; }
+    .section-left { position: static; padding: 48px 24px 32px; border-right: none; border-bottom: 1px solid var(--border); }
+    .section-right { padding: 32px 24px 48px; }
+    .identity-states { grid-template-columns: 1fr; }
+    .is-arrow { display: none; }
+    .auth-options { grid-template-columns: 1fr; }
+    .auth-option:first-child { border-right: none; border-bottom: 1px solid var(--border); }
+    .context-profile { grid-template-columns: 1fr 1fr; }
+    .rs-grid { grid-template-columns: 1fr 1fr; }
+    .reasoning-summary, .reasoning-cta { padding: 60px 24px; }
+    footer { padding: 28px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-left">
+    <a href="index.html" class="nav-back">AgentOS</a>
+    <a href="index.html" class="nav-logo-text">Agent<span>OS</span></a>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#context">Context</a></li>
+    <li><a href="#sentiment">Sentiment</a></li>
+    <li><a href="#cron">Cron Jobs</a></li>
+    <li><a href="#identity">Identity</a></li>
+    <li><a href="#phone">Phone</a></li>
+  </ul>
+  <div class="nav-right">
+    <span class="nav-chapter">Reasoning Layer</span>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-visual">
+    <div class="pulse-ring"></div>
+    <div class="pulse-ring"></div>
+    <div class="pulse-ring"></div>
+    <div class="pulse-ring"></div>
+    <div class="signal-nodes">
+      <div class="snode snode-context">Context</div>
+      <div class="snode snode-sentiment">Sentiment</div>
+      <div class="snode snode-cron">Cron</div>
+      <div class="snode snode-identity">Identity</div>
+      <div class="snode snode-phone">Phone</div>
+    </div>
+  </div>
+
+  <div class="hero-eyebrow">AgentOS · Reasoning Layer</div>
+  <h1 class="hero-headline">
+    Your entity<br>
+    <span class="hl-dim">is always</span><br>
+    <span class="hl-cron">working.</span>
+  </h1>
+  <p class="hero-sub">
+    Most AI waits to be asked. AgentOS entities build understanding continuously — across every conversation, every call, every signal — running overnight to surface insights before you even open the dashboard.
+  </p>
+
+  <div class="hero-meta">
+    <div class="hero-meta-item">
+      <span class="meta-dot" style="background:var(--context);"></span>
+      Context Engine
+    </div>
+    <div class="hero-meta-item">
+      <span class="meta-dot" style="background:var(--sentiment);" style="animation-delay:0.5s"></span>
+      Sentiment Engine
+    </div>
+    <div class="hero-meta-item">
+      <span class="meta-dot" style="background:var(--cron);" style="animation-delay:1s"></span>
+      Daily Cron Jobs
+    </div>
+    <div class="hero-meta-item">
+      <span class="meta-dot" style="background:var(--identity);" style="animation-delay:1.5s"></span>
+      Identity Layer
+    </div>
+    <div class="hero-meta-item">
+      <span class="meta-dot" style="background:var(--phone);" style="animation-delay:2s"></span>
+      Phone Intelligence
+    </div>
+  </div>
+</section>
+
+<!-- LAYER NAV -->
+<div class="layer-nav">
+  <a href="#context" class="layer-nav-item">
+    <span class="layer-nav-dot" style="background:var(--context);"></span>
+    01 · Context Engine
+  </a>
+  <a href="#sentiment" class="layer-nav-item">
+    <span class="layer-nav-dot" style="background:var(--sentiment);"></span>
+    02 · Sentiment Engine
+  </a>
+  <a href="#cron" class="layer-nav-item">
+    <span class="layer-nav-dot" style="background:var(--cron);"></span>
+    03 · Cron Jobs
+  </a>
+  <a href="#identity" class="layer-nav-item">
+    <span class="layer-nav-dot" style="background:var(--identity);"></span>
+    04 · Identity Layer
+  </a>
+  <a href="#phone" class="layer-nav-item">
+    <span class="layer-nav-dot" style="background:var(--phone);"></span>
+    05 · Phone Intelligence
+  </a>
+</div>
+
+<!-- 01 CONTEXT ENGINE -->
+<section class="reasoning-section" id="context">
+  <div class="section-inner">
+    <div class="section-left">
+      <div>
+        <div class="section-number" style="color:var(--context);">01</div>
+        <div class="section-tag" style="color:var(--context);">
+          <span class="section-tag-dot" style="background:var(--context);"></span>
+          Context Engine
+        </div>
+        <h2 class="section-title">Your entity remembers everything.</h2>
+        <p class="section-desc">Every interaction — web visit, chat session, phone call — feeds a unified context model. Not a chat history. A living profile that deepens with every signal, across every channel, over time.</p>
+        <p class="section-desc">When a customer calls Tuesday and visits your site Thursday, your entity knows it's the same person. Their profile updates. Their context sharpens. The next interaction starts smarter than the last one ended.</p>
+      </div>
+      <div class="section-swappable">Swappable from dashboard</div>
+    </div>
+
+    <div class="section-right">
+      <!-- UNIFIED TIMELINE -->
+      <div class="context-timeline">
+        <div class="timeline-header">
+          <div class="timeline-header-left">
+            <div class="thl-dot"></div>
+            Unified Customer Timeline
+          </div>
+          <div class="timeline-label">Jordan Tran · Acme Corp</div>
+        </div>
+        <div class="timeline-events">
+          <div class="timeline-event">
+            <div class="te-time">Mon 9:42am</div>
+            <div class="te-icon-wrap">
+              <div class="te-icon" style="border-color:rgba(96,240,192,0.3); color:var(--phone);">☎</div>
+              <div class="te-line"></div>
+            </div>
+            <div class="te-content">
+              <div class="te-channel ch-phone">Phone Call · 8 min</div>
+              <div class="te-desc">Inbound call. Discussed Q3 deployment timeline and budget range. Expressed urgency about competitor evaluation.</div>
+              <div class="te-signal sig-match">Matched to existing web lead</div>
+            </div>
+          </div>
+          <div class="timeline-event">
+            <div class="te-time">Tue 2:15pm</div>
+            <div class="te-icon-wrap">
+              <div class="te-icon" style="border-color:rgba(160,200,255,0.3); color:var(--context);">⬡</div>
+              <div class="te-line"></div>
+            </div>
+            <div class="te-content">
+              <div class="te-channel ch-web">Web · 4 pages · 12 min</div>
+              <div class="te-desc">Returned to site. Visited pricing page twice. Read enterprise case study in full. Returned to pricing.</div>
+              <div class="te-signal sig-hot">🔥 Buying signal detected</div>
+            </div>
+          </div>
+          <div class="timeline-event">
+            <div class="te-time">Tue 3:40pm</div>
+            <div class="te-icon-wrap">
+              <div class="te-icon" style="border-color:rgba(255,176,96,0.3); color:var(--sentiment);">◈</div>
+              <div class="te-line"></div>
+            </div>
+            <div class="te-content">
+              <div class="te-channel ch-chat">Chat · 18 min</div>
+              <div class="te-desc">Opened chat. Asked detailed integration questions. Confirmed $25k budget. Mentioned team of 8 needing access.</div>
+              <div class="te-signal sig-hot">Escalated to Hot tier</div>
+            </div>
+          </div>
+          <div class="timeline-event">
+            <div class="te-time">2:14am</div>
+            <div class="te-icon-wrap">
+              <div class="te-icon" style="border-color:rgba(200,240,96,0.3); color:var(--cron);">◎</div>
+            </div>
+            <div class="te-content">
+              <div class="te-channel ch-cron">Cron · Overnight Summary</div>
+              <div class="te-desc">Prediction generated: 78% close probability within 14 days. Follow-up sequence drafted. Competitor risk flagged.</div>
+              <div class="te-signal sig-pred">Prediction ready on dashboard</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- UNIFIED PROFILE -->
+      <div class="context-profile">
+        <div class="profile-header">
+          <div class="profile-name">Jordan Tran</div>
+          <div class="profile-score">
+            <span>Lead Score</span>
+            <span class="score-num">87</span>
+          </div>
+        </div>
+        <div class="profile-stat">
+          <div class="ps-label">Status</div>
+          <div class="ps-value psv-hot">🔥 Hot · Escalated</div>
+        </div>
+        <div class="profile-stat">
+          <div class="ps-label">Phone Match</div>
+          <div class="ps-value psv-match">Confirmed · Mon call</div>
+        </div>
+        <div class="profile-stat">
+          <div class="ps-label">Budget</div>
+          <div class="ps-value">$25,000 confirmed</div>
+        </div>
+        <div class="profile-stat">
+          <div class="ps-label">Timeline</div>
+          <div class="ps-value">Q3 deployment</div>
+        </div>
+        <div class="profile-stat">
+          <div class="ps-label">Close Prediction</div>
+          <div class="ps-value psv-pred">78% · 14 days</div>
+        </div>
+        <div class="profile-stat">
+          <div class="ps-label">Context Depth</div>
+          <div class="ps-value psv-ctx">3 channels · 4 touchpoints</div>
+        </div>
+      </div>
+
+      <div class="swappable-note">
+        <div class="sn-icon">⟳</div>
+        <div class="sn-text">The context engine is <strong>swappable from your dashboard</strong>. Configure what signals it tracks, how long it retains context, and what thresholds trigger escalation — without touching any code.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 02 SENTIMENT ENGINE -->
+<section class="reasoning-section" id="sentiment">
+  <div class="section-inner">
+    <div class="section-left">
+      <div>
+        <div class="section-number" style="color:var(--sentiment);">02</div>
+        <div class="section-tag" style="color:var(--sentiment);">
+          <span class="section-tag-dot" style="background:var(--sentiment);"></span>
+          Sentiment Engine
+        </div>
+        <h2 class="section-title">Your entity reads the room.</h2>
+        <p class="section-desc">Every message, every call transcript, every chat session is analyzed in real time. Not just what users say — but how they're saying it. Urgency, hesitation, budget signals, competitor mentions, objections — all extracted and fed directly into the customer profile.</p>
+        <p class="section-desc">The sentiment engine doesn't wait for you to notice a pattern. It flags it, scores it, and surfaces it — before the opportunity cools.</p>
+      </div>
+      <div class="section-swappable">Swappable from dashboard</div>
+    </div>
+
+    <div class="section-right">
+      <div class="sentiment-display">
+        <div class="sentiment-display-header">
+          <div class="sdh-left">
+            <div class="sdh-dot"></div>
+            Live Transcript Analysis
+          </div>
+          <div style="font-size:9px; color:var(--white-faint); letter-spacing:0.1em;">Inbound Call · Mon 9:42am</div>
+        </div>
+        <div class="sentiment-rows">
+          <div class="sentiment-row">
+            <div>
+              <div class="sr-quote">"We've been looking at a few options — honestly we need something deployed by end of Q3. Our budget is around $20–25k."</div>
+              <div class="sr-tags">
+                <span class="sr-tag tag-budget">Budget: $20–25k</span>
+                <span class="sr-tag tag-timeline">Timeline: Q3</span>
+                <span class="sr-tag tag-intent">High intent</span>
+              </div>
+            </div>
+            <div class="sr-meter">
+              <div class="sr-score-label">Score</div>
+              <div class="sr-score-num" style="color:var(--phone);">91</div>
+              <div class="sr-bar-wrap"><div class="sr-bar" style="width:91%; background:var(--phone);"></div></div>
+            </div>
+          </div>
+          <div class="sentiment-row">
+            <div>
+              <div class="sr-quote">"The last vendor we used completely dropped the ball on delivery. That's why we're being careful this time."</div>
+              <div class="sr-tags">
+                <span class="sr-tag tag-negative">Competitor pain</span>
+                <span class="sr-tag tag-objection">Trust objection</span>
+              </div>
+            </div>
+            <div class="sr-meter">
+              <div class="sr-score-label">Risk</div>
+              <div class="sr-score-num" style="color:var(--sentiment);">42</div>
+              <div class="sr-bar-wrap"><div class="sr-bar" style="width:42%; background:var(--sentiment);"></div></div>
+            </div>
+          </div>
+          <div class="sentiment-row">
+            <div>
+              <div class="sr-quote">"Yeah this looks really promising. Can you tell me more about the onboarding process and how fast we'd be live?"</div>
+              <div class="sr-tags">
+                <span class="sr-tag tag-positive">Positive signal</span>
+                <span class="sr-tag tag-intent">Speed priority</span>
+                <span class="sr-tag tag-timeline">Deployment Q</span>
+              </div>
+            </div>
+            <div class="sr-meter">
+              <div class="sr-score-label">Score</div>
+              <div class="sr-score-num" style="color:var(--phone);">88</div>
+              <div class="sr-bar-wrap"><div class="sr-bar" style="width:88%; background:var(--phone);"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="swappable-note">
+        <div class="sn-icon">⟳</div>
+        <div class="sn-text">The sentiment engine is <strong>swappable from your dashboard</strong>. Configure which signals matter to your domain — a civic oracle like Judy tracks policy urgency and constituent sentiment, not sales intent.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 03 CRON JOBS -->
+<section class="reasoning-section" id="cron">
+  <div class="section-inner">
+    <div class="section-left">
+      <div>
+        <div class="section-number" style="color:var(--cron);">03</div>
+        <div class="section-tag" style="color:var(--cron);">
+          <span class="section-tag-dot" style="background:var(--cron);"></span>
+          Daily Cron Jobs
+        </div>
+        <h2 class="section-title">Your entity works while you sleep.</h2>
+        <p class="section-desc">Every night, your entity runs the jobs you define. Summarizing the day's interactions. Scoring every client in your pipeline. Generating predictions. Flagging risks. Drafting follow-up sequences. Building tomorrow's intelligence from today's signals.</p>
+        <p class="section-desc">You build the jobs from your dashboard. You choose what runs, when it runs, and what data it runs on. The entity executes. You wake up to answers.</p>
+      </div>
+      <div class="section-swappable">User-configured via dashboard</div>
+    </div>
+
+    <div class="section-right">
+      <div class="cron-builder">
+        <div class="cron-header">
+          <div class="cron-header-left">
+            <div class="cron-dot"></div>
+            Scheduled Jobs · Maurice
+          </div>
+          <div class="cron-new-btn">+ New Job</div>
+        </div>
+        <div class="cron-jobs-list">
+          <div class="cron-job">
+            <div>
+              <div class="cj-name">Daily Client Summary</div>
+              <div class="cj-desc">Summarize all interactions, score changes, and flag priority contacts</div>
+            </div>
+            <div class="cj-schedule">Daily · 2:00 AM</div>
+            <div class="cj-toggle"></div>
+          </div>
+          <div class="cron-job">
+            <div>
+              <div class="cj-name">Pipeline Prediction</div>
+              <div class="cj-desc">Generate 14-day close probability for every active lead</div>
+            </div>
+            <div class="cj-schedule">Daily · 2:30 AM</div>
+            <div class="cj-toggle"></div>
+          </div>
+          <div class="cron-job">
+            <div>
+              <div class="cj-name">Churn Risk Detection</div>
+              <div class="cj-desc">Flag accounts with declining engagement or negative sentiment trends</div>
+            </div>
+            <div class="cj-schedule">Daily · 3:00 AM</div>
+            <div class="cj-toggle"></div>
+          </div>
+          <div class="cron-job">
+            <div>
+              <div class="cj-name">Follow-up Drafts</div>
+              <div class="cj-desc">Draft re-engagement sequences for leads silent 5+ days</div>
+            </div>
+            <div class="cj-schedule">Mon–Fri · 4:00 AM</div>
+            <div class="cj-toggle"></div>
+          </div>
+          <div class="cron-job">
+            <div>
+              <div class="cj-name">Weekly Intelligence Report</div>
+              <div class="cj-desc">Full pipeline analysis with trend patterns and anomalies</div>
+            </div>
+            <div class="cj-schedule">Sunday · 5:00 AM</div>
+            <div class="cj-toggle off"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SAMPLE OUTPUT -->
+      <div class="cron-output" style="border:1px solid var(--border);">
+        <div class="co-label">Sample Cron Output · Daily Client Summary</div>
+        <div class="co-summary">
+          Of 14 active leads reviewed overnight, 3 moved to Hot tier based on session depth and sentiment scoring. Jordan Tran shows 78% close probability — budget confirmed, Q3 timeline validated, trust objection noted. 2 accounts flagged for churn risk: engagement dropped 60% week-over-week. 5 follow-up sequences queued for morning review. No action required — everything is staged on your dashboard.
+        </div>
+      </div>
+
+      <div class="swappable-note">
+        <div class="sn-icon">⟳</div>
+        <div class="sn-text">Every job is <strong>fully user-defined from your dashboard</strong>. Build jobs for your domain — Judy's cron jobs summarize bill movement and predict policy shifts. Maurice's predict pipeline. Same engine, different intelligence.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 04 IDENTITY LAYER -->
+<section class="reasoning-section" id="identity">
+  <div class="section-inner">
+    <div class="section-left">
+      <div>
+        <div class="section-number" style="color:var(--identity);">04</div>
+        <div class="section-tag" style="color:var(--identity);">
+          <span class="section-tag-dot" style="background:var(--identity);"></span>
+          Identity Layer
+        </div>
+        <h2 class="section-title">Your entity knows you before you introduce yourself.</h2>
+        <p class="section-desc">A soft login tracks users via cookies and local storage the moment they arrive — no account required. Your entity starts building a profile immediately. When they eventually connect via Google or create an account, every prior interaction merges into their authenticated record seamlessly.</p>
+        <p class="section-desc">No friction. No forced sign-ups. No lost history. The entity always offers the option to connect — and always works without it.</p>
+      </div>
+      <div class="section-swappable">Swappable from dashboard</div>
+    </div>
+
+    <div class="section-right">
+      <div class="identity-flow">
+        <div class="identity-states">
+          <div class="identity-state">
+            <div class="is-stage" style="color:var(--white-faint);">Stage 01</div>
+            <div class="is-name">Anonymous</div>
+            <div class="is-desc">User arrives. Cookie set. Local storage initialized. Entity starts building a profile from behavior, session depth, and interaction signals.</div>
+            <div class="is-badge badge-cookie">Cookie + Local Storage</div>
+          </div>
+          <div class="is-arrow">→</div>
+          <div class="identity-state">
+            <div class="is-stage" style="color:var(--identity);">Stage 02</div>
+            <div class="is-name">Soft Profile</div>
+            <div class="is-desc">Named lead. Behavior tracked across sessions. Sentiment scored. Entity offers connection — Google OAuth or simple account — at natural moments. Never forced.</div>
+            <div class="is-badge badge-optional">Auth Optional</div>
+          </div>
+          <div class="is-arrow">→</div>
+          <div class="identity-state">
+            <div class="is-stage" style="color:var(--cron);">Stage 03</div>
+            <div class="is-name">Authenticated</div>
+            <div class="is-desc">Full profile. All prior anonymous history merged. Persistent cross-session memory. Cron jobs run on their record. Dashboard reflects complete history.</div>
+            <div class="is-badge badge-full">Full Profile · Merged</div>
+          </div>
+        </div>
+
+        <div class="identity-merge">
+          <div class="merge-icon">⟲</div>
+          <div class="merge-text"><strong>History merge on authentication.</strong> Every interaction from their anonymous session — chat history, web behavior, phone calls matched by number, sentiment scores — merges into their authenticated profile the moment they connect. Nothing is lost.</div>
+        </div>
+
+        <div class="auth-options">
+          <div class="auth-option">
+            <div class="ao-icon">G</div>
+            <div class="ao-name">Connect with Google</div>
+            <div class="ao-desc">One click. OAuth handled. Profile merged instantly. No passwords, no forms.</div>
+          </div>
+          <div class="auth-option">
+            <div class="ao-icon">@</div>
+            <div class="ao-name">Simple Account</div>
+            <div class="ao-desc">Email and password. Lightweight. Works everywhere. Full profile access.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="swappable-note">
+        <div class="sn-icon">⟳</div>
+        <div class="sn-text">The identity layer is <strong>swappable from your dashboard</strong>. Configure cookie retention, auth options, merge behavior, and what triggers a soft login prompt — tuned to your entity's domain and user base.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 PHONE INTELLIGENCE -->
+<section class="reasoning-section" id="phone">
+  <div class="section-inner">
+    <div class="section-left">
+      <div>
+        <div class="section-number" style="color:var(--phone);">05</div>
+        <div class="section-tag" style="color:var(--phone);">
+          <span class="section-tag-dot" style="background:var(--phone);"></span>
+          Phone Intelligence
+        </div>
+        <h2 class="section-title">Your entity takes calls.</h2>
+        <p class="section-desc">AgentOS entities aren't chat-only. They handle phone calls — and every call feeds the same reasoning layer. Transcripts analyzed in real time. Caller matched to existing profile by number. Sentiment scored. Budget, timeline, and intent extracted. CRM updated before the call ends.</p>
+        <p class="section-desc">A customer who calls Monday and chats Thursday is one person to your entity. One profile. One picture. One history.</p>
+      </div>
+      <div class="section-swappable">Swappable from dashboard</div>
+    </div>
+
+    <div class="section-right">
+      <div class="phone-display">
+        <div class="phone-header">
+          <div class="ph-left">
+            <div class="ph-dot"></div>
+            Live Call · Inbound
+          </div>
+          <div class="ph-live">● Recording · Analyzing</div>
+        </div>
+
+        <div class="phone-transcript">
+          <div class="pt-line">
+            <div class="pt-speaker caller">Caller</div>
+            <div>
+              <div class="pt-text">"We've been evaluating a few platforms. Our Q3 deadline is firm — we need to be live by September. Budget is in the $20–25k range."</div>
+              <div class="pt-extraction">
+                <span class="sr-tag tag-budget">Budget: $20–25k</span>
+                <span class="sr-tag tag-timeline">Timeline: Q3</span>
+                <span class="sr-tag tag-intent">Evaluating</span>
+              </div>
+            </div>
+          </div>
+          <div class="pt-line">
+            <div class="pt-speaker entity">Maurice</div>
+            <div>
+              <div class="pt-text">"That timeline is very workable. We've deployed teams of your size in under 3 weeks. Let me walk you through what Q3 onboarding actually looks like..."</div>
+            </div>
+          </div>
+          <div class="pt-line">
+            <div class="pt-speaker caller">Caller</div>
+            <div>
+              <div class="pt-text">"Our last vendor missed every milestone. That's our biggest concern going in."</div>
+              <div class="pt-extraction">
+                <span class="sr-tag tag-negative">Competitor pain</span>
+                <span class="sr-tag tag-objection">Trust risk</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="phone-crm-update">
+          <div class="pcu-icon">↗</div>
+          <div class="pcu-text">
+            <strong>CRM updated in real time.</strong> Caller matched to Jordan Tran · Acme Corp. Budget $25k confirmed. Q3 timeline validated. Trust objection logged. Lead score updated to 87. Profile flagged for follow-up within 24 hours.
+          </div>
+        </div>
+      </div>
+
+      <div class="swappable-note">
+        <div class="sn-icon">⟳</div>
+        <div class="sn-text">Phone intelligence is <strong>swappable from your dashboard</strong>. Configure call routing, transcript retention, extraction rules, and how calls map to entity types — a civic oracle handles constituent calls differently than a business agent handles sales calls.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SUMMARY -->
+<section class="reasoning-summary">
+  <div class="rs-label">The Reasoning Layer · All Five Components</div>
+  <div class="rs-grid">
+    <div class="rs-cell">
+      <div class="rsc-color" style="background:var(--context);"></div>
+      <div class="rsc-name">Context Engine</div>
+      <div class="rsc-desc">Unified profile across every channel. Every signal remembered. Every touchpoint connected.</div>
+    </div>
+    <div class="rs-cell">
+      <div class="rsc-color" style="background:var(--sentiment);"></div>
+      <div class="rsc-name">Sentiment Engine</div>
+      <div class="rsc-desc">Real-time intent, emotion, and signal extraction from every conversation and call.</div>
+    </div>
+    <div class="rs-cell">
+      <div class="rsc-color" style="background:var(--cron);"></div>
+      <div class="rsc-name">Cron Jobs</div>
+      <div class="rsc-desc">User-configured overnight intelligence. Summaries, predictions, and follow-ups — on your schedule.</div>
+    </div>
+    <div class="rs-cell">
+      <div class="rsc-color" style="background:var(--identity);"></div>
+      <div class="rsc-name">Identity Layer</div>
+      <div class="rsc-desc">Soft login via cookie and local storage. Merges to full profile on Google or account auth.</div>
+    </div>
+    <div class="rs-cell">
+      <div class="rsc-color" style="background:var(--phone);"></div>
+      <div class="rsc-name">Phone Intelligence</div>
+      <div class="rsc-desc">Calls transcribed, analyzed, and merged into the same unified profile as every other channel.</div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="reasoning-cta">
+  <div class="rcta-bg"></div>
+  <div class="rcta-inner">
+    <div class="rcta-eyebrow">AgentOS · Reasoning Layer</div>
+    <h2 class="rcta-headline">Intelligence that never stops.</h2>
+    <p class="rcta-sub">Deploy an entity that works across every channel, builds understanding over time, and surfaces insights before you ask for them.</p>
+    <div class="rcta-actions">
+      <a href="index.html" class="btn-primary">Back to AgentOS</a>
+      <a href="dashboard.html" class="btn-outline">See the Dashboard →</a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <div class="footer-brand">Agent<span>OS</span> · Blacksky Labs</div>
+    <div class="footer-copy">© 2026 Blacksky LLC — All rights reserved</div>
+  </div>
+  <div class="footer-links">
+    <a href="index.html">AgentOS Home</a>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="https://blackskymedia.org/maurice/">Maurice</a>
+    <a href="https://blackskymedia.org/whoisourgov/">Judy</a>
+    <a href="https://blackskymedia.org/">Blacksky Labs</a>
+  </div>
+</footer>
+
+</body>
+</html>

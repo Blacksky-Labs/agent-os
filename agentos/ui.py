@@ -186,6 +186,23 @@ INDEX_HTML = """<!DOCTYPE html>
       font-size: 13px;
     }
     .ingest-row button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ingest-row .hint {
+      color: var(--text-dim);
+      font-size: 12px;
+      align-self: center;
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-size: 11px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      color: var(--text-dim);
+      flex-shrink: 0;
+    }
+    .pill.ok      { color: var(--accent); border-color: rgba(110, 231, 183, 0.4); }
+    .pill.pending { color: var(--warn);   border-color: rgba(244, 196, 102, 0.4); }
     .status-line {
       margin-top: 8px;
       font-size: 12px;
@@ -280,15 +297,24 @@ INDEX_HTML = """<!DOCTYPE html>
       <option>Loading agents…</option>
     </select>
     <span class="meta" id="agent-meta"></span>
+    <a class="manage-btn" href="/dashboard" style="text-decoration:none;display:inline-block;">Dashboard →</a>
     <button class="manage-btn" id="manage-toggle">📁 Manage</button>
   </div>
 
   <div class="manage-panel" id="manage-panel">
-    <h3>Corpus for <span id="manage-agent-name">—</span></h3>
-    <div class="corpus-summary" id="corpus-summary">Loading…</div>
+    <h3>Drop folder</h3>
+    <div class="corpus-summary" id="drop-folder-summary">Loading…</div>
+    <div id="drop-folder-container"></div>
+    <div class="ingest-row" style="margin-top:8px;">
+      <button id="ingest-folder-btn" class="primary">Ingest folder</button>
+      <span class="hint" id="ingest-folder-hint"></span>
+    </div>
+
+    <h3 style="margin-top:18px;">Corpus for <span id="manage-agent-name">—</span></h3>
+    <div class="corpus-summary" id="corpus-summary"></div>
     <div id="corpus-container"></div>
 
-    <h3 style="margin-top:14px;">Add a file or folder</h3>
+    <h3 style="margin-top:18px;">Advanced: ingest from any path</h3>
     <div class="ingest-row">
       <input id="ingest-path" placeholder="Absolute path on this machine, e.g. /Users/you/Documents/notes.md">
       <button id="ingest-btn">Ingest</button>
@@ -318,8 +344,14 @@ INDEX_HTML = """<!DOCTYPE html>
     const ingestInput = $("ingest-path");
     const ingestBtn = $("ingest-btn");
     const ingestStatus = $("ingest-status");
+    const dropFolderSummary = $("drop-folder-summary");
+    const dropFolderContainer = $("drop-folder-container");
+    const ingestFolderBtn = $("ingest-folder-btn");
+    const ingestFolderHint = $("ingest-folder-hint");
 
-    const sessionId = `s_${Math.random().toString(36).slice(2, 14)}`;
+    let currentDropFolder = null;     // relative path, e.g. "corpus/stan"
+
+    let sessionId = `s_${Math.random().toString(36).slice(2, 14)}`;  // overridden by the kernel's active session on load
     let agents = {};
 
     function escapeHtml(s) {
@@ -472,13 +504,57 @@ INDEX_HTML = """<!DOCTYPE html>
 
     function renderCorpus(data) {
       manageAgentName.textContent = data.agent_name || sel.value || "—";
+      currentDropFolder = data.drop_folder || null;
+
+      // ---- Drop folder section ----
+      const folderFiles = data.drop_folder_files || [];
+      if (!data.drop_folder_exists) {
+        dropFolderSummary.textContent =
+          `${data.drop_folder} (not created yet — drop files in to populate)`;
+      } else {
+        const ingestedCount = folderFiles.filter(f => f.in_corpus).length;
+        dropFolderSummary.textContent =
+          `${data.drop_folder}  ·  ${folderFiles.length} file(s) in folder  ·  ${ingestedCount} ingested`;
+      }
+      ingestFolderHint.textContent = `(runs ingest on ${data.drop_folder}/)`;
+      ingestFolderBtn.disabled = !data.drop_folder_exists || folderFiles.length === 0;
+
+      if (folderFiles.length === 0) {
+        dropFolderContainer.innerHTML =
+          `<div class="corpus-empty">Drop .md, .txt, or .markdown files into ${escapeHtml(data.drop_folder_abs || data.drop_folder)}/, then click Ingest folder.</div>`;
+      } else {
+        const ulf = document.createElement("ul");
+        ulf.className = "corpus-list";
+        folderFiles.forEach(f => {
+          const li = document.createElement("li");
+          const label = document.createElement("span");
+          label.className = "source";
+          label.title = f.path;
+          label.textContent = f.name;
+          const pill = document.createElement("span");
+          if (f.in_corpus) {
+            pill.className = "pill ok";
+            pill.textContent = `ingested · ${f.chunks} chunk${f.chunks === 1 ? "" : "s"}`;
+          } else {
+            pill.className = "pill pending";
+            pill.textContent = "not ingested";
+          }
+          li.appendChild(label);
+          li.appendChild(pill);
+          ulf.appendChild(li);
+        });
+        dropFolderContainer.innerHTML = "";
+        dropFolderContainer.appendChild(ulf);
+      }
+
+      // ---- Full corpus list (includes external sources too) ----
       const sources = data.sources || [];
       corpusSummary.textContent =
         `namespace ${data.namespace}  ·  ${data.total_chunks} chunk(s)  ·  ${sources.length} source(s)`;
 
       if (sources.length === 0) {
         corpusContainer.innerHTML =
-          '<div class="corpus-empty">No documents ingested yet. Use the field below.</div>';
+          '<div class="corpus-empty">No documents ingested yet.</div>';
         return;
       }
 
@@ -486,7 +562,6 @@ INDEX_HTML = """<!DOCTYPE html>
       ul.className = "corpus-list";
       sources.forEach(s => {
         const li = document.createElement("li");
-
         const label = document.createElement("span");
         label.className = "source";
         label.title = s.source;
@@ -508,6 +583,37 @@ INDEX_HTML = """<!DOCTYPE html>
       });
       corpusContainer.innerHTML = "";
       corpusContainer.appendChild(ul);
+    }
+
+    async function ingestFolder() {
+      if (!currentDropFolder) return;
+      const agent = sel.value;
+      ingestFolderBtn.disabled = true;
+      setStatus(ingestStatus, `Ingesting ${currentDropFolder}/…`, "warn");
+      try {
+        const r = await fetch(`/agents/${encodeURIComponent(agent)}/ingest`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: currentDropFolder }),
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          setStatus(ingestStatus, `Ingest failed: ${data.detail || r.statusText}`, "err");
+          return;
+        }
+        const errs = (data.errors || []).length;
+        const note = errs > 0 ? `  (${errs} warning(s))` : "";
+        setStatus(
+          ingestStatus,
+          `✓ ${data.files || 0} file(s), ${data.chunks || 0} chunk(s) added, ${data.total_in_collection || 0} total${note}`,
+          "ok"
+        );
+        await loadCorpus();
+      } catch (e) {
+        setStatus(ingestStatus, `Ingest failed: ${e.message}`, "err");
+      } finally {
+        ingestFolderBtn.disabled = false;
+      }
     }
 
     async function loadCorpus() {
@@ -614,6 +720,7 @@ INDEX_HTML = """<!DOCTYPE html>
     });
     manageBtn.addEventListener("click", toggleManagePanel);
     ingestBtn.addEventListener("click", ingestPath);
+    ingestFolderBtn.addEventListener("click", ingestFolder);
     ingestInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -622,6 +729,8 @@ INDEX_HTML = """<!DOCTYPE html>
     });
 
     loadAgents();
+    // Adopt the kernel's active session: `agentos start` → fresh, `agentos resume` → last conversation.
+    fetch("/health").then(r => r.json()).then(d => { if (d && d.active_session) sessionId = d.active_session; }).catch(() => {});
   </script>
 </body>
 </html>

@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Build Your Entity — AgentOS · Blacksky Labs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --black: #060608;
+  --off-black: #0c0c10;
+  --panel: #101014;
+  --border: #1a1a22;
+  --border-light: #262630;
+  --white: #f0eeea;
+  --white-dim: #9a968f;
+  --white-mid: #524e50;
+  --white-faint: #28262a;
+  --ao-green: #c8f060;
+  --focused: #e8a060;
+  --focused-dim: rgba(232,160,96,0.12);
+  --focused-border: rgba(232,160,96,0.25);
+  --wide: #60c0f0;
+  --wide-dim: rgba(96,192,240,0.12);
+  --wide-border: rgba(96,192,240,0.25);
+  --prism: #f060a0;
+  --voice: #60f0c0;
+  --voice-dim: rgba(96,240,192,0.1);
+  --voice-border: rgba(96,240,192,0.25);
+  --context: #a0c8ff;
+  --identity: #d0a0ff;
+  --interface-color: #f0d060;
+  --grid: rgba(255,255,255,0.015);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+
+body {
+  background: var(--black);
+  color: var(--white);
+  font-family: 'DM Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none; z-index: 0;
+}
+
+/* NAV */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 40px; height: 60px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(6,6,8,0.96); backdrop-filter: blur(16px);
+}
+.nav-left { display: flex; align-items: center; gap: 20px; }
+.nav-back {
+  display: flex; align-items: center; gap: 6px; text-decoration: none;
+  color: var(--white-dim); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; padding-right: 20px;
+  border-right: 1px solid var(--border); transition: color 0.2s;
+}
+.nav-back:hover { color: var(--white); }
+.nav-back::before { content: '←'; margin-right: 4px; }
+.nav-title {
+  font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--white-dim);
+}
+.nav-title span { color: var(--ao-green); }
+.nav-chapter {
+  font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--white-mid); padding: 4px 10px; border: 1px solid var(--border);
+  border-radius: 2px; background: var(--panel);
+}
+.nav-reset {
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--white-mid); cursor: pointer; border: 1px solid var(--border);
+  padding: 6px 14px; border-radius: 2px; background: none;
+  transition: color 0.2s, border-color 0.2s;
+}
+.nav-reset:hover { color: var(--white); border-color: var(--border-light); }
+
+/* ARCHETYPE SCREEN */
+.archetype-screen {
+  position: relative; z-index: 1; min-height: 100vh;
+  padding-top: 60px; display: flex; flex-direction: column;
+}
+.archetype-header {
+  padding: 64px 48px 48px; border-bottom: 1px solid var(--border); text-align: center;
+  animation: fadeUp 0.7s ease forwards;
+}
+.arch-eyebrow {
+  font-size: 9px; letter-spacing: 0.28em; text-transform: uppercase;
+  color: var(--white-mid); margin-bottom: 20px;
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+}
+.arch-eyebrow::before, .arch-eyebrow::after {
+  content: ''; flex: 1; max-width: 80px; height: 1px; background: var(--border);
+}
+.arch-headline {
+  font-family: 'Syne', sans-serif; font-size: clamp(36px, 5vw, 64px);
+  font-weight: 800; letter-spacing: -0.025em; line-height: 0.95; margin-bottom: 20px;
+}
+.arch-headline em {
+  font-style: italic; font-weight: 300; font-family: 'Fraunces', serif; color: var(--white-dim);
+}
+.arch-sub {
+  font-family: 'Fraunces', serif; font-style: italic; font-size: 16px;
+  color: var(--white-dim); line-height: 1.65; max-width: 540px; margin: 0 auto;
+}
+.arch-sub strong { font-style: normal; color: var(--white); font-weight: 400; }
+
+/* ARCHETYPE CARDS */
+.archetype-cards {
+  display: grid; grid-template-columns: 1fr 1fr; flex: 1;
+  border-top: 1px solid var(--border);
+  animation: fadeUp 0.7s ease forwards 0.15s; opacity: 0; animation-fill-mode: forwards;
+}
+.archetype-card {
+  padding: 64px 52px; cursor: pointer; transition: background 0.3s;
+  display: flex; flex-direction: column; position: relative; overflow: hidden;
+}
+.archetype-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  opacity: 0; transition: opacity 0.3s;
+}
+.archetype-card.focused-card::before { background: var(--focused); }
+.archetype-card.wide-card::before  { background: var(--wide); }
+.archetype-card:hover::before, .archetype-card.is-selected::before { opacity: 1; }
+.archetype-card.focused-card { border-right: 1px solid var(--border); }
+.archetype-card.focused-card:hover, .archetype-card.focused-card.is-selected { background: var(--focused-dim); }
+.archetype-card.wide-card:hover,  .archetype-card.wide-card.is-selected  { background: var(--wide-dim); }
+
+.arch-glyph { width: 72px; height: 72px; margin-bottom: 36px; }
+.arch-glyph svg { width: 100%; height: 100%; }
+
+.arch-type-label { font-size: 9px; letter-spacing: 0.28em; text-transform: uppercase; margin-bottom: 10px; }
+.focused-card .arch-type-label { color: var(--focused); }
+.wide-card  .arch-type-label { color: var(--wide); }
+
+.arch-name {
+  font-family: 'Syne', sans-serif; font-size: clamp(48px, 6vw, 76px);
+  font-weight: 800; letter-spacing: -0.04em; line-height: 0.9; margin-bottom: 20px;
+}
+.focused-card .arch-name { color: var(--focused); }
+.wide-card  .arch-name { color: var(--wide); }
+
+.arch-tagline {
+  font-family: 'Fraunces', serif; font-style: italic; font-size: 17px;
+  color: var(--white-dim); margin-bottom: 28px; line-height: 1.4;
+}
+
+.arch-traits { display: flex; flex-direction: column; gap: 9px; margin-bottom: 36px; }
+.arch-trait { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--white-dim); }
+.arch-trait::before { content: ''; width: 20px; height: 1px; flex-shrink: 0; }
+.focused-card .arch-trait::before { background: var(--focused); }
+.wide-card  .arch-trait::before { background: var(--wide); }
+
+.arch-suggest {
+  margin-top: auto; padding-top: 28px; border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 7px;
+}
+.arch-suggest-label {
+  font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--white-faint); margin-bottom: 4px;
+}
+.arch-suggest-row { display: flex; align-items: center; justify-content: space-between; font-size: 10px; }
+.asr-key { color: var(--white-mid); letter-spacing: 0.08em; }
+.focused-card .asr-val { color: var(--focused); }
+.wide-card  .asr-val { color: var(--wide); }
+
+.arch-cta {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 24px;
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 11px 18px; border-radius: 2px; border: 1px solid; width: fit-content;
+  transition: all 0.2s;
+}
+.focused-card .arch-cta { color: var(--focused); border-color: var(--focused-border); background: var(--focused-dim); }
+.wide-card  .arch-cta { color: var(--wide);  border-color: var(--wide-border);  background: var(--wide-dim); }
+.focused-card:hover .arch-cta { background: rgba(232,160,96,0.22); }
+.wide-card:hover  .arch-cta { background: rgba(96,192,240,0.22); }
+
+/* CONFIGURATOR */
+.configurator {
+  position: relative; z-index: 1; display: none;
+  grid-template-columns: 1fr 380px; min-height: calc(100vh - 60px); padding-top: 60px;
+}
+.configurator.is-visible { display: grid; animation: fadeIn 0.35s ease forwards; }
+
+/* LEFT PANE */
+.diagram-pane {
+  border-right: 1px solid var(--border); display: flex;
+  flex-direction: column; padding: 44px 40px;
+}
+.config-breadcrumb {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 36px;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.cb-item { color: var(--white-mid); }
+.cb-sep  { color: var(--white-faint); }
+.cb-current { color: var(--white); }
+.cb-archetype {
+  padding: 3px 10px; border-radius: 2px; border: 1px solid; font-weight: 500;
+}
+.cb-archetype.focused { color: var(--focused); border-color: var(--focused-border); background: var(--focused-dim); }
+.cb-archetype.wide  { color: var(--wide);  border-color: var(--wide-border);  background: var(--wide-dim); }
+
+.config-intro { margin-bottom: 36px; }
+.config-headline {
+  font-family: 'Syne', sans-serif; font-size: clamp(24px, 2.8vw, 36px);
+  font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 10px;
+}
+.config-sub { font-size: 12px; color: var(--white-dim); line-height: 1.75; max-width: 480px; }
+
+/* ENTITY STACK */
+.entity-stack { display: flex; flex-direction: column; border: 1px solid var(--border); }
+
+.layer-block {
+  border-bottom: 1px solid var(--border); position: relative;
+  transition: background 0.25s; overflow: hidden;
+}
+.layer-block:last-child { border-bottom: none; }
+.layer-block.is-open { background: rgba(255,255,255,0.01); }
+
+.layer-header {
+  display: grid; grid-template-columns: 44px 1fr auto 28px;
+  align-items: center; padding: 18px 20px; cursor: pointer;
+  gap: 14px; user-select: none; transition: background 0.2s;
+}
+.layer-header:hover { background: rgba(255,255,255,0.02); }
+
+.layer-index {
+  font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+  color: var(--white-mid); letter-spacing: 0.1em;
+}
+.layer-label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 3px; }
+.layer-name { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; line-height: 1; }
+
+.layer-selection-preview {
+  display: flex; align-items: center; gap: 7px; padding: 5px 12px;
+  border: 1px solid var(--border); border-radius: 2px; background: var(--off-black);
+  min-width: 150px; justify-content: flex-end;
+}
+.lsp-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.lsp-name { font-size: 10px; color: var(--white-mid); letter-spacing: 0.06em; white-space: nowrap; }
+.lsp-name.is-chosen { color: var(--white); }
+
+.layer-chevron { font-size: 10px; color: var(--white-mid); transition: transform 0.25s; text-align: center; }
+.layer-block.is-open .layer-chevron { transform: rotate(180deg); }
+
+.layer-options {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1);
+  border-top: 1px solid transparent;
+}
+.layer-block.is-open .layer-options { max-height: 700px; border-top-color: var(--border); }
+
+.options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); padding: 1px; }
+
+.option-card {
+  background: var(--off-black); padding: 16px 18px; cursor: pointer;
+  transition: background 0.2s; position: relative; overflow: hidden;
+}
+.option-card:hover { background: var(--panel); }
+.option-card.is-selected { background: var(--panel); }
+.option-card.is-selected::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.option-card.is-suggested { background: rgba(200,240,96,0.015); }
+
+.suggested-pill {
+  position: absolute; top: 8px; right: 8px;
+  font-size: 7px; letter-spacing: 0.15em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 2px; color: var(--ao-green);
+  border: 1px solid rgba(200,240,96,0.25); background: rgba(200,240,96,0.06);
+  opacity: 0; transition: opacity 0.2s; pointer-events: none;
+}
+.option-card.is-suggested .suggested-pill { opacity: 1; }
+
+.option-top { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.option-indicator {
+  width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--border-light);
+  flex-shrink: 0; transition: all 0.2s; background: transparent;
+}
+.option-name { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.option-note { font-size: 10px; color: var(--white-mid); line-height: 1.6; }
+.option-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.option-tag {
+  font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 2px; border: 1px solid var(--border); color: var(--white-mid);
+}
+
+/* VOICE ADD-ON BLOCK */
+.addon-block {
+  border: 1px solid var(--border); border-top: none; overflow: hidden;
+}
+
+.addon-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; background: var(--off-black);
+}
+
+.addon-left { display: flex; align-items: center; gap: 14px; }
+
+.addon-icon {
+  width: 32px; height: 32px; border-radius: 3px;
+  background: var(--voice-dim); border: 1px solid var(--voice-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+
+.addon-info {}
+.addon-label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--white-mid); margin-bottom: 2px; }
+.addon-name { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; }
+
+.addon-toggle-wrap { display: flex; align-items: center; gap: 10px; }
+.addon-toggle-label { font-size: 10px; color: var(--white-mid); letter-spacing: 0.08em; }
+
+.toggle {
+  width: 44px; height: 24px; border-radius: 12px; background: var(--border);
+  position: relative; cursor: pointer; transition: background 0.25s; flex-shrink: 0;
+  border: none; outline: none;
+}
+.toggle::after {
+  content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--white-mid); top: 4px; left: 4px; transition: all 0.25s;
+}
+.toggle.is-on { background: var(--voice); }
+.toggle.is-on::after { left: 24px; background: var(--black); }
+
+.addon-details {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1);
+  border-top: 1px solid transparent;
+}
+.addon-details.is-open { max-height: 300px; border-top-color: var(--border); }
+
+.addon-features {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: var(--border); padding: 1px;
+}
+
+.addon-feature {
+  background: var(--off-black); padding: 14px 16px;
+  display: flex; align-items: flex-start; gap: 10px;
+}
+
+.af-dot {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--voice);
+  flex-shrink: 0; margin-top: 5px;
+}
+
+.af-name { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+.af-desc { font-size: 10px; color: var(--white-mid); line-height: 1.55; }
+
+/* RIGHT: SUMMARY */
+.summary-pane {
+  position: sticky; top: 60px; height: calc(100vh - 60px); overflow-y: auto;
+  display: flex; flex-direction: column; background: var(--off-black); transition: background 0.5s;
+}
+.summary-pane.focused-active { background: linear-gradient(180deg, rgba(232,160,96,0.06) 0%, var(--off-black) 30%); }
+.summary-pane.wide-active  { background: linear-gradient(180deg, rgba(96,192,240,0.06) 0%, var(--off-black) 30%); }
+.summary-pane.prism-active { background: linear-gradient(180deg, rgba(240,96,160,0.06) 0%, var(--off-black) 30%); }
+
+.summary-arch-badge {
+  margin: 20px 24px 0; display: inline-flex; align-items: center; gap: 10px;
+  padding: 7px 14px; border-radius: 2px; border: 1px solid; width: fit-content;
+  opacity: 0; transition: opacity 0.3s;
+}
+.summary-arch-badge.is-visible { opacity: 1; }
+.summary-arch-badge.focused { color: var(--focused); border-color: var(--focused-border); background: var(--focused-dim); }
+.summary-arch-badge.wide  { color: var(--wide);  border-color: var(--wide-border);  background: var(--wide-dim); }
+.sab-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.focused .sab-dot { background: var(--focused); }
+.wide  .sab-dot { background: var(--wide); }
+.sab-name { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; }
+.sab-label { font-size: 8px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--white-mid); }
+
+.summary-header { padding: 16px 24px 20px; border-bottom: 1px solid var(--border); }
+.sh-label { font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--white-mid); margin-bottom: 12px; }
+.sh-entity-type { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--white-mid); margin-bottom: 4px; transition: color 0.3s; }
+.sh-entity-desc { font-family: 'Fraunces', serif; font-style: italic; font-size: 12px; color: var(--white-dim); line-height: 1.5; opacity: 0.4; transition: opacity 0.3s; }
+.sh-entity-desc.is-set { opacity: 1; }
+
+.summary-layers { padding: 16px 24px; display: flex; flex-direction: column; gap: 2px; border-bottom: 1px solid var(--border); }
+
+.summary-layer-row {
+  display: grid; grid-template-columns: 84px 1fr; align-items: center;
+  padding: 10px 12px; border: 1px solid transparent; border-radius: 3px;
+  transition: all 0.2s; gap: 8px;
+}
+.summary-layer-row.has-selection { border-color: var(--border); background: var(--panel); }
+
+.slr-key { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--white-mid); }
+.slr-value {
+  font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600;
+  color: var(--white-mid); transition: color 0.3s; display: flex; align-items: center; gap: 6px;
+}
+.slr-value.is-set { color: var(--white); }
+.slr-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+/* VOICE SUMMARY ROW */
+.summary-voice-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border: 1px solid transparent; border-radius: 3px;
+  transition: all 0.2s; margin-top: 2px;
+}
+.summary-voice-row.is-on {
+  border-color: var(--voice-border); background: var(--voice-dim);
+}
+.svr-left { display: flex; align-items: center; gap: 8px; }
+.svr-key { font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--white-mid); }
+.svr-val { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 600; color: var(--white-mid); transition: color 0.3s; }
+.svr-val.is-on { color: var(--voice); }
+.svr-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--voice); opacity: 0.3; flex-shrink: 0; transition: opacity 0.3s; }
+.svr-dot.is-on { opacity: 1; }
+
+.summary-desc { padding: 16px 24px; border-bottom: 1px solid var(--border); }
+.sd-label { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--white-mid); margin-bottom: 10px; }
+.sd-text { font-family: 'Fraunces', serif; font-style: italic; font-size: 12px; color: var(--white-dim); line-height: 1.8; min-height: 70px; transition: color 0.3s; }
+.sd-text.is-complete { color: var(--white); }
+
+.summary-progress { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 7px; }
+.sp-label { display: flex; align-items: center; justify-content: space-between; font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--white-mid); }
+.sp-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.sp-bar { height: 100%; border-radius: 2px; transition: width 0.4s cubic-bezier(0.4,0,0.2,1); width: 0%; }
+.sp-bar.focused-bar { background: var(--focused); }
+.sp-bar.wide-bar  { background: var(--wide); }
+
+.summary-checks { padding: 14px 24px 10px; display: flex; flex-direction: column; gap: 5px; }
+.check-row { display: flex; align-items: center; gap: 9px; font-size: 10px; color: var(--white-mid); letter-spacing: 0.06em; transition: color 0.3s; }
+.check-row.focused.is-done { color: var(--focused); }
+.check-row.wide.is-done  { color: var(--wide); }
+.check-icon { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--border-light); display: flex; align-items: center; justify-content: center; font-size: 7px; flex-shrink: 0; transition: all 0.3s; }
+.check-row.focused.is-done .check-icon { background: var(--focused); border-color: var(--focused); color: var(--black); }
+.check-row.wide.is-done  .check-icon { background: var(--wide);  border-color: var(--wide);  color: var(--black); }
+
+.summary-cta { padding: 16px 24px; display: flex; flex-direction: column; gap: 9px; margin-top: auto; }
+.cta-btn {
+  width: 100%; padding: 12px; font-family: 'DM Mono', monospace; font-size: 11px;
+  font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
+  border-radius: 2px; cursor: pointer; border: none; transition: all 0.25s;
+  text-align: center; text-decoration: none; display: block;
+}
+.cta-btn-primary { background: var(--white-faint); color: var(--white-mid); pointer-events: none; }
+.cta-btn-primary.focused-ready { background: var(--focused); color: var(--black); pointer-events: all; }
+.cta-btn-primary.wide-ready  { background: var(--wide);  color: var(--black); pointer-events: all; }
+.cta-btn-primary.focused-ready:hover, .cta-btn-primary.wide-ready:hover { opacity: 0.88; transform: translateY(-1px); }
+.cta-btn-secondary { background: transparent; color: var(--white-mid); border: 1px solid var(--border); }
+.cta-btn-secondary:hover { color: var(--white); border-color: var(--border-light); }
+.cta-note { font-size: 10px; color: var(--white-mid); text-align: center; line-height: 1.6; }
+
+@media (max-width: 900px) {
+  nav { padding: 0 20px; }
+  .nav-chapter { display: none; }
+  .archetype-cards { grid-template-columns: 1fr; }
+  .archetype-card.focused-card { border-right: none; border-bottom: 1px solid var(--border); }
+  .configurator { grid-template-columns: 1fr; }
+  .diagram-pane { padding: 28px 20px; }
+  .summary-pane { position: static; height: auto; border-top: 1px solid var(--border); }
+  .options-grid { grid-template-columns: 1fr; }
+  .archetype-header { padding: 44px 24px 32px; }
+  .archetype-card { padding: 40px 28px; }
+  .addon-features { grid-template-columns: 1fr; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-left">
+    <a href="index.html" class="nav-back">AgentOS</a>
+    <span class="nav-title">Agent<span>OS</span></span>
+  </div>
+  <span class="nav-chapter">Entity Configurator</span>
+  <button class="nav-reset" onclick="resetAll()">Start Over</button>
+</nav>
+
+<!-- ARCHETYPE SCREEN -->
+<div class="archetype-screen" id="archetypeScreen">
+  <div class="archetype-header">
+    <div class="arch-eyebrow">AgentOS · Entity Configurator</div>
+    <h1 class="arch-headline">Every entity begins<br><em>Wide or Focused.</em></h1>
+    <p class="arch-sub">Same platform. Same engine. <strong>Different defaults.</strong><br>Wide entities cast a broad net. Focused entities go deep on your domain.</p>
+  </div>
+
+  <div class="archetype-cards">
+    <!-- ADAM -->
+    <div class="archetype-card focused-card" onclick="selectArchetype('focused')">
+      <div class="arch-glyph">
+        <svg viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="18" y="18" width="36" height="36" stroke="#e8a060" stroke-width="1.5"/>
+          <rect x="28" y="28" width="16" height="16" fill="#e8a060" fill-opacity="0.25" stroke="#e8a060" stroke-width="1"/>
+          <line x1="36" y1="4"  x2="36" y2="18" stroke="#e8a060" stroke-width="1" stroke-dasharray="2 3"/>
+          <line x1="36" y1="54" x2="36" y2="68" stroke="#e8a060" stroke-width="1" stroke-dasharray="2 3"/>
+          <line x1="4"  y1="36" x2="18" y2="36" stroke="#e8a060" stroke-width="1" stroke-dasharray="2 3"/>
+          <line x1="54" y1="36" x2="68" y2="36" stroke="#e8a060" stroke-width="1" stroke-dasharray="2 3"/>
+          <circle cx="36" cy="36" r="2.5" fill="#e8a060"/>
+        </svg>
+      </div>
+      <div class="arch-type-label">Type 01</div>
+      <div class="arch-name">Focused</div>
+      <div class="arch-tagline">Precision intelligence.<br>Your data. Your domain.</div>
+      <div class="arch-traits">
+        <div class="arch-trait">Built on your data and your domain</div>
+        <div class="arch-trait">Focused dataset — fast, precise retrieval</div>
+        <div class="arch-trait">CRM, operations, QA, internal intelligence</div>
+        <div class="arch-trait">Knows your context with precision</div>
+      </div>
+      <div class="arch-suggest">
+        <div class="arch-suggest-label">Default configuration</div>
+        <div class="arch-suggest-row"><span class="asr-key">Model</span><span class="asr-val">Cloud LLM</span></div>
+        <div class="arch-suggest-row"><span class="asr-key">Database</span><span class="asr-val">Lightweight DB</span></div>
+        <div class="arch-suggest-row"><span class="asr-key">Interface</span><span class="asr-val">CRM Dashboard</span></div>
+        <div class="arch-suggest-row"><span class="asr-key">Reasoning</span><span class="asr-val">Single Model</span></div>
+      </div>
+      <div class="arch-cta">Configure Focused →</div>
+    </div>
+
+    <!-- EVE -->
+    <div class="archetype-card wide-card" onclick="selectArchetype('wide')">
+      <div class="arch-glyph">
+        <svg viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="36" cy="36" r="28" stroke="#60c0f0" stroke-width="1.5"/>
+          <circle cx="36" cy="36" r="16" stroke="#60c0f0" stroke-width="1" stroke-opacity="0.45"/>
+          <circle cx="36" cy="36" r="5"  fill="#60c0f0" fill-opacity="0.25" stroke="#60c0f0" stroke-width="1"/>
+          <circle cx="36" cy="9"  r="2.5" fill="#60c0f0" fill-opacity="0.55"/>
+          <circle cx="36" cy="63" r="2.5" fill="#60c0f0" fill-opacity="0.55"/>
+          <circle cx="9"  cy="36" r="2.5" fill="#60c0f0" fill-opacity="0.55"/>
+          <circle cx="63" cy="36" r="2.5" fill="#60c0f0" fill-opacity="0.55"/>
+          <circle cx="36" cy="36" r="1.5" fill="#60c0f0"/>
+        </svg>
+      </div>
+      <div class="arch-type-label">Type 02</div>
+      <div class="arch-name">Wide</div>
+      <div class="arch-tagline">Expansive intelligence.<br>Large surface. Real-time. Scale.</div>
+      <div class="arch-traits">
+        <div class="arch-trait">Built on large external knowledge bases</div>
+        <div class="arch-trait">Thousands to hundreds of thousands of records</div>
+        <div class="arch-trait">Civic, financial, research, global intelligence</div>
+        <div class="arch-trait">Real-time feeds and live data ingestion</div>
+      </div>
+      <div class="arch-suggest">
+        <div class="arch-suggest-label">Default configuration</div>
+        <div class="arch-suggest-row"><span class="asr-key">Model</span><span class="asr-val">MoE Framework</span></div>
+        <div class="arch-suggest-row"><span class="asr-key">Database</span><span class="asr-val">Prism AI Database</span></div>
+        <div class="arch-suggest-row"><span class="asr-key">Interface</span><span class="asr-val">Standard Dashboard</span></div>
+        <div class="arch-suggest-row"><span class="asr-key">Reasoning</span><span class="asr-val">MoE Routing</span></div>
+      </div>
+      <div class="arch-cta">Configure Wide →</div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIGURATOR -->
+<div class="configurator" id="configurator">
+
+  <div class="diagram-pane">
+    <div class="config-breadcrumb">
+      <span class="cb-item">AgentOS</span>
+      <span class="cb-sep">›</span>
+      <span class="cb-archetype" id="breadcrumbArchetype">—</span>
+      <span class="cb-sep">›</span>
+      <span class="cb-current">Configure</span>
+    </div>
+
+    <div class="config-intro">
+      <h2 class="config-headline" id="configHeadline">Configure your entity.</h2>
+      <p class="config-sub" id="configSub">Click any layer to open it. Nothing is locked — suggestions are just a starting point.</p>
+    </div>
+
+    <div class="entity-stack" id="entityStack">
+
+      <!-- 01 MODEL -->
+      <div class="layer-block" id="layer-model">
+        <div class="layer-header" onclick="toggleLayer('model')">
+          <div class="layer-index">01</div>
+          <div class="layer-header-info">
+            <div class="layer-label" style="color:var(--context);">Model Layer</div>
+            <div class="layer-name">Inference Engine</div>
+          </div>
+          <div class="layer-selection-preview" id="preview-model">
+            <span class="lsp-dot" style="background:var(--context);opacity:0.4;"></span>
+            <span class="lsp-name" id="preview-model-text">Not configured</span>
+          </div>
+          <div class="layer-chevron">▾</div>
+        </div>
+        <div class="layer-options" id="options-model">
+          <div class="options-grid">
+            <div class="option-card" id="oc-model-local" onclick="selectOption('model','local','Local LLM','var(--context)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-model-local"></div><div class="option-name">Local LLM</div></div>
+              <div class="option-note">Runs on-device. Your data never leaves. Best for privacy-sensitive domains.</div>
+              <div class="option-tags"><span class="option-tag">Private</span><span class="option-tag">Fast</span></div>
+            </div>
+            <div class="option-card" id="oc-model-cloud" onclick="selectOption('model','cloud','Cloud LLM','var(--context)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-model-cloud"></div><div class="option-name">Cloud LLM</div></div>
+              <div class="option-note">70B+ parameters. Maximum capability. Scale to any volume on demand.</div>
+              <div class="option-tags"><span class="option-tag">Powerful</span><span class="option-tag">Scalable</span></div>
+            </div>
+            <div class="option-card" id="oc-model-vertex" onclick="selectOption('model','vertex','Vertex AI','var(--context)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-model-vertex"></div><div class="option-name">Vertex AI</div></div>
+              <div class="option-note">Gemini on GCP. Enterprise compliance and data residency guarantees.</div>
+              <div class="option-tags"><span class="option-tag">Enterprise</span><span class="option-tag">GCP</span></div>
+            </div>
+            <div class="option-card" id="oc-model-moe" onclick="selectOption('model','moe','MoE Framework','var(--context)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-model-moe"></div><div class="option-name">MoE Framework</div></div>
+              <div class="option-note">Mixture of Experts. Each query routed to the specialist model best suited.</div>
+              <div class="option-tags"><span class="option-tag">Deep</span><span class="option-tag">Routed</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 02 DATABASE -->
+      <div class="layer-block" id="layer-db">
+        <div class="layer-header" onclick="toggleLayer('db')">
+          <div class="layer-index">02</div>
+          <div class="layer-header-info">
+            <div class="layer-label" style="color:var(--focused);">Database Layer</div>
+            <div class="layer-name">Memory & Retrieval</div>
+          </div>
+          <div class="layer-selection-preview" id="preview-db">
+            <span class="lsp-dot" style="background:var(--focused);opacity:0.4;"></span>
+            <span class="lsp-name" id="preview-db-text">Not configured</span>
+          </div>
+          <div class="layer-chevron">▾</div>
+        </div>
+        <div class="layer-options" id="options-db">
+          <div class="options-grid">
+            <div class="option-card" id="oc-db-lightweight" onclick="selectOption('db','lightweight','Lightweight DB','var(--focused)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-db-lightweight"></div><div class="option-name">Lightweight DB</div></div>
+              <div class="option-note">Focused dataset. Fast retrieval. Ideal for narrow domain intelligence.</div>
+              <div class="option-tags"><span class="option-tag">Fast</span><span class="option-tag">Focused</span></div>
+            </div>
+            <div class="option-card" id="oc-db-vector" onclick="selectOption('db','vector','Vector RAG','var(--focused)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-db-vector"></div><div class="option-name">Vector RAG</div></div>
+              <div class="option-note">ChromaDB semantic retrieval. Mid-scale knowledge corpus.</div>
+              <div class="option-tags"><span class="option-tag">Semantic</span><span class="option-tag">Mid-scale</span></div>
+            </div>
+            <div class="option-card" id="oc-db-postgres" onclick="selectOption('db','postgres','PostgreSQL','var(--focused)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-db-postgres"></div><div class="option-name">PostgreSQL</div></div>
+              <div class="option-note">Relational structure. Precise queries on structured domain data.</div>
+              <div class="option-tags"><span class="option-tag">Structured</span><span class="option-tag">Precise</span></div>
+            </div>
+            <div class="option-card" id="oc-db-prism" onclick="selectOption('db','prism','Prism AI Database','var(--prism)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-db-prism" style="border-color:rgba(240,96,160,0.4);"></div><div class="option-name" style="color:var(--prism);">Prism</div></div>
+              <div class="option-note">Blacksky's AI database. 250k+ records. Real-time ingestion. Built for large-scale oracles.</div>
+              <div class="option-tags"><span class="option-tag" style="color:var(--prism);border-color:rgba(240,96,160,0.3);">AI Native</span><span class="option-tag" style="color:var(--prism);border-color:rgba(240,96,160,0.3);">250k+</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 03 INTERFACE -->
+      <div class="layer-block" id="layer-interface">
+        <div class="layer-header" onclick="toggleLayer('interface')">
+          <div class="layer-index">03</div>
+          <div class="layer-header-info">
+            <div class="layer-label" style="color:var(--interface-color);">Interface Layer</div>
+            <div class="layer-name">Dashboard & Management</div>
+          </div>
+          <div class="layer-selection-preview" id="preview-interface">
+            <span class="lsp-dot" style="background:var(--interface-color);opacity:0.4;"></span>
+            <span class="lsp-name" id="preview-interface-text">Not configured</span>
+          </div>
+          <div class="layer-chevron">▾</div>
+        </div>
+        <div class="layer-options" id="options-interface">
+          <div class="options-grid">
+            <div class="option-card" id="oc-interface-standard" onclick="selectOption('interface','standard','Standard Dashboard','var(--interface-color)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-interface-standard"></div><div class="option-name">Standard</div></div>
+              <div class="option-note">Chat interface, analytics, cron job builder, layer configuration, identity management.</div>
+              <div class="option-tags"><span class="option-tag">Core</span><span class="option-tag">All entities</span></div>
+            </div>
+            <div class="option-card" id="oc-interface-crm" onclick="selectOption('interface','crm','CRM Dashboard','var(--interface-color)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-interface-crm"></div><div class="option-name">CRM</div></div>
+              <div class="option-note">Standard plus pipeline view, lead scoring, client timelines, sentiment board, follow-up queue.</div>
+              <div class="option-tags"><span class="option-tag">Pipeline</span><span class="option-tag">Lead scoring</span></div>
+            </div>
+            <div class="option-card" id="oc-interface-crm-sf" onclick="selectOption('interface','crm-sf','CRM + Salesforce','var(--interface-color)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-interface-crm-sf"></div><div class="option-name">CRM + Salesforce</div></div>
+              <div class="option-note">Full CRM dashboard with live Salesforce sync. Bidirectional data flow and native field mapping.</div>
+              <div class="option-tags"><span class="option-tag">Salesforce</span><span class="option-tag">Bidirectional</span></div>
+            </div>
+            <div class="option-card" id="oc-interface-crm-hs" onclick="selectOption('interface','crm-hs','CRM + HubSpot','var(--interface-color)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-interface-crm-hs"></div><div class="option-name">CRM + HubSpot</div></div>
+              <div class="option-note">Full CRM dashboard with live HubSpot sync. Contacts, deals, and activity in one view.</div>
+              <div class="option-tags"><span class="option-tag">HubSpot</span><span class="option-tag">Bidirectional</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 04 REASONING -->
+      <div class="layer-block" id="layer-reasoning">
+        <div class="layer-header" onclick="toggleLayer('reasoning')">
+          <div class="layer-index">04</div>
+          <div class="layer-header-info">
+            <div class="layer-label" style="color:var(--identity);">Reasoning Layer</div>
+            <div class="layer-name">How It Thinks</div>
+          </div>
+          <div class="layer-selection-preview" id="preview-reasoning">
+            <span class="lsp-dot" style="background:var(--identity);opacity:0.4;"></span>
+            <span class="lsp-name" id="preview-reasoning-text">Not configured</span>
+          </div>
+          <div class="layer-chevron">▾</div>
+        </div>
+        <div class="layer-options" id="options-reasoning">
+          <div class="options-grid">
+            <div class="option-card" id="oc-reasoning-single" onclick="selectOption('reasoning','single','Single Model','var(--identity)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-reasoning-single"></div><div class="option-name">Single Model</div></div>
+              <div class="option-note">One model handles everything. Fast, consistent, reliable for most domains.</div>
+              <div class="option-tags"><span class="option-tag">Fast</span><span class="option-tag">Consistent</span></div>
+            </div>
+            <div class="option-card" id="oc-reasoning-moe" onclick="selectOption('reasoning','moe','MoE Routing','var(--identity)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-reasoning-moe"></div><div class="option-name">MoE Routing</div></div>
+              <div class="option-note">Each query dispatched to the expert best suited to answer it at scale.</div>
+              <div class="option-tags"><span class="option-tag">Deep</span><span class="option-tag">Routed</span></div>
+            </div>
+            <div class="option-card" id="oc-reasoning-specialists" onclick="selectOption('reasoning','specialists','Domain Specialists','var(--identity)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-reasoning-specialists"></div><div class="option-name">Domain Specialists</div></div>
+              <div class="option-note">Fine-tuned sub-models per knowledge area. Maximum depth in each domain slice.</div>
+              <div class="option-tags"><span class="option-tag">Specialized</span><span class="option-tag">Fine-tuned</span></div>
+            </div>
+            <div class="option-card" id="oc-reasoning-nano" onclick="selectOption('reasoning','nano','Nano-models','var(--identity)')">
+              <div class="suggested-pill">Suggested</div>
+              <div class="option-top"><div class="option-indicator" id="oi-reasoning-nano"></div><div class="option-name">Nano-models</div></div>
+              <div class="option-note">Lightweight cascaded chains. Pattern recognition at speed.</div>
+              <div class="option-tags"><span class="option-tag">Lightweight</span><span class="option-tag">Pattern</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- end entity-stack -->
+
+    <!-- VOICE ADD-ON -->
+    <div class="addon-block">
+      <div class="addon-header">
+        <div class="addon-left">
+          <div class="addon-icon">☎</div>
+          <div class="addon-info">
+            <div class="addon-label">Add-on</div>
+            <div class="addon-name">Voice Intelligence</div>
+          </div>
+        </div>
+        <div class="addon-toggle-wrap">
+          <span class="addon-toggle-label" id="voiceToggleLabel">Off</span>
+          <button class="toggle" id="voiceToggle" onclick="toggleVoice()"></button>
+        </div>
+      </div>
+      <div class="addon-details" id="voiceDetails">
+        <div class="addon-features">
+          <div class="addon-feature">
+            <div class="af-dot"></div>
+            <div><div class="af-name">Phone Number</div><div class="af-desc">Provision a number. Your entity picks up calls directly.</div></div>
+          </div>
+          <div class="addon-feature">
+            <div class="af-dot"></div>
+            <div><div class="af-name">Live Transcription</div><div class="af-desc">Every call transcribed in real time. Signals extracted immediately.</div></div>
+          </div>
+          <div class="addon-feature">
+            <div class="af-dot"></div>
+            <div><div class="af-name">Sentiment Analysis</div><div class="af-desc">Budget, intent, objections, and urgency flagged during the call.</div></div>
+          </div>
+          <div class="addon-feature">
+            <div class="af-dot"></div>
+            <div><div class="af-name">Profile Merge</div><div class="af-desc">Caller matched to existing record. History merged automatically.</div></div>
+          </div>
+          <div class="addon-feature">
+            <div class="af-dot"></div>
+            <div><div class="af-name">Call History</div><div class="af-desc">Full call log on every client record. Searchable. Sentiment scored.</div></div>
+          </div>
+          <div class="addon-feature">
+            <div class="af-dot"></div>
+            <div><div class="af-name">CRM Update</div><div class="af-desc">Record updated before the call ends. No manual entry.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end diagram-pane -->
+
+  <!-- SUMMARY -->
+  <div class="summary-pane" id="summaryPane">
+
+    <div class="summary-arch-badge" id="summaryArchBadge">
+      <span class="sab-dot"></span>
+      <div>
+        <div class="sab-name" id="sabName">—</div>
+        <div class="sab-label" id="sabLabel">—</div>
+      </div>
+    </div>
+
+    <div class="summary-header">
+      <div class="sh-label">Your Entity</div>
+      <div class="sh-entity-type" id="sum-type">Select an archetype to begin</div>
+      <div class="sh-entity-desc" id="sum-desc-short">—</div>
+    </div>
+
+    <div class="summary-layers">
+      <div class="summary-layer-row" id="sum-row-model">
+        <div class="slr-key">Model</div>
+        <div class="slr-value" id="sum-val-model">
+          <span class="slr-dot" style="background:var(--context);opacity:0.3;"></span>
+          <span id="sum-text-model">Not configured</span>
+        </div>
+      </div>
+      <div class="summary-layer-row" id="sum-row-db">
+        <div class="slr-key">Database</div>
+        <div class="slr-value" id="sum-val-db">
+          <span class="slr-dot" id="sum-dot-db" style="background:var(--focused);opacity:0.3;"></span>
+          <span id="sum-text-db">Not configured</span>
+        </div>
+      </div>
+      <div class="summary-layer-row" id="sum-row-interface">
+        <div class="slr-key">Interface</div>
+        <div class="slr-value" id="sum-val-interface">
+          <span class="slr-dot" style="background:var(--interface-color);opacity:0.3;"></span>
+          <span id="sum-text-interface">Not configured</span>
+        </div>
+      </div>
+      <div class="summary-layer-row" id="sum-row-reasoning">
+        <div class="slr-key">Reasoning</div>
+        <div class="slr-value" id="sum-val-reasoning">
+          <span class="slr-dot" style="background:var(--identity);opacity:0.3;"></span>
+          <span id="sum-text-reasoning">Not configured</span>
+        </div>
+      </div>
+      <div class="summary-voice-row" id="sum-voice-row">
+        <div class="svr-left">
+          <span class="svr-dot" id="sum-voice-dot"></span>
+          <span class="svr-key">Voice</span>
+        </div>
+        <span class="svr-val" id="sum-voice-val">Off</span>
+      </div>
+    </div>
+
+    <div class="summary-desc">
+      <div class="sd-label">Generated Description</div>
+      <div class="sd-text" id="sum-gen-desc">Configure the layers above — your entity description builds here in real time.</div>
+    </div>
+
+    <div class="summary-progress">
+      <div class="sp-label">
+        <span>Configuration</span>
+        <span id="progress-count">0 / 4</span>
+      </div>
+      <div class="sp-bar-wrap"><div class="sp-bar" id="progressBar"></div></div>
+    </div>
+
+    <div class="summary-checks">
+      <div class="check-row" id="check-model"><div class="check-icon" id="chk-model">◦</div>Model layer</div>
+      <div class="check-row" id="check-db"><div class="check-icon" id="chk-db">◦</div>Database layer</div>
+      <div class="check-row" id="check-interface"><div class="check-icon" id="chk-interface">◦</div>Interface layer</div>
+      <div class="check-row" id="check-reasoning"><div class="check-icon" id="chk-reasoning">◦</div>Reasoning layer</div>
+    </div>
+
+    <div class="summary-cta">
+      <button class="cta-btn cta-btn-primary" id="ctaBtn">Configure all layers to continue</button>
+      <a href="reasoning.html" class="cta-btn cta-btn-secondary">Explore the Reasoning Layer</a>
+      <div class="cta-note">POC configurator — visualizing what we're building.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const state = { archetype: null, model: null, db: null, interface: null, reasoning: null, voice: false };
+
+const archetypes = {
+  focused: {
+    name: 'Focused', label: 'Narrow Domain Expert',
+    typeDesc: 'Precision. Depth. Built on your data.',
+    shortDesc: 'Your domain. Your data. Precision and speed.',
+    color: 'var(--focused)',
+    suggestions: { model: 'cloud', db: 'lightweight', interface: 'crm', reasoning: 'single' },
+    desc: {
+      base: 'A Focused entity is your dedicated narrow domain expert — built deep on your specific data, your internal context, your records.',
+      model: { local: 'Running locally, all data stays within your infrastructure.', cloud: 'Powered by a Cloud LLM, bringing full language capability to your focused domain.', vertex: 'On Vertex AI with enterprise compliance and GCP-backed infrastructure.', moe: 'With MoE, even a narrow domain gets specialist routing for maximum depth.' },
+      db: { lightweight: 'A lightweight database keeps retrieval fast and tightly focused.', vector: 'Vector RAG gives semantic retrieval across your knowledge corpus.', postgres: 'PostgreSQL provides precise, structured access to your domain dataset.', prism: 'Connected to Prism — your entire domain, deeply indexed at enterprise scale.' },
+      interface: { standard: 'Managed through a Standard Dashboard — analytics, cron jobs, and layer configuration.', crm: 'The CRM Dashboard adds pipeline view, lead scoring, client timelines, and follow-up queues.', 'crm-sf': 'CRM + Salesforce gives live bidirectional sync — your entity and Salesforce stay in lockstep.', 'crm-hs': 'CRM + HubSpot gives live bidirectional sync — contacts, deals, and activity unified.' },
+      reasoning: { single: 'A single consistent model handles all domain queries reliably.', moe: 'MoE routing ensures each query type goes to the right specialist.', specialists: 'Domain specialist sub-models give maximum depth across each knowledge slice.', nano: 'Cascaded nano-models process your domain signals at high frequency.' }
+    }
+  },
+  eve: {
+    name: 'Eve', label: 'Broad Knowledge Oracle',
+    typeDesc: 'Wide. Vast. Connected to the world.',
+    shortDesc: 'Large knowledge surface. Real-time feeds. Scale.',
+    color: 'var(--wide)',
+    suggestions: { model: 'moe', db: 'prism', interface: 'standard', reasoning: 'moe' },
+    desc: {
+      base: 'A Wide entity is a broad knowledge oracle — built on large external datasets, real-time feeds, and knowledge surfaces that scale to hundreds of thousands of records.',
+      model: { local: 'Running locally, Eve processes broad knowledge without external data exposure.', cloud: 'Powered by a Cloud LLM, Eve brings maximum language capability to a vast knowledge surface.', vertex: 'On Vertex AI, Eve meets enterprise compliance at full scale.', moe: 'With MoE routing, Eve dispatches each query across its broad knowledge surface to the right specialist.' },
+      db: { lightweight: 'A lightweight DB keeps Eve fast for targeted queries within a curated slice.', vector: 'Vector RAG gives Eve semantic retrieval across thousands of records.', postgres: 'PostgreSQL provides structured access to Eve\'s broad domain dataset.', prism: 'Prism powers Eve at full scale — 250k+ records, real-time ingestion, tiered intelligence architecture.' },
+      interface: { standard: 'Managed through the Standard Dashboard — knowledge base status, query analytics, and layer controls.', crm: 'The CRM Dashboard surfaces query patterns, user engagement, and topic performance metrics.', 'crm-sf': 'CRM + Salesforce connects Eve\'s knowledge outputs directly to your Salesforce pipeline.', 'crm-hs': 'CRM + HubSpot connects Eve\'s knowledge outputs directly to your HubSpot pipeline.' },
+      reasoning: { single: 'A single model provides consistent answers across Eve\'s full knowledge surface.', moe: 'MoE routing is the natural fit for Eve — specialist dispatch across a broad knowledge base.', specialists: 'Domain specialist sub-models give deep expertise across each sector of Eve\'s knowledge base.', nano: 'Nano-models process the daily data firehose — thousands of new records — at speed.' }
+    }
+  }
+};
+
+function selectArchetype(type) {
+  state.archetype = type;
+  const arch = archetypes[type];
+  document.getElementById('archetypeScreen').style.display = 'none';
+  const config = document.getElementById('configurator');
+  config.classList.add('is-visible');
+  const bc = document.getElementById('breadcrumbArchetype');
+  bc.textContent = arch.name; bc.className = 'cb-archetype ' + type;
+  document.getElementById('configHeadline').textContent = 'Configure your ' + arch.name + '.';
+  document.getElementById('configSub').textContent = type === 'focused'
+    ? 'Suggestions favor focus, speed, and your data. Nothing is locked.'
+    : 'Suggestions favor scale, breadth, and real-time knowledge. Nothing is locked.';
+  const badge = document.getElementById('summaryArchBadge');
+  badge.classList.add('is-visible', type);
+  document.getElementById('sabName').textContent = arch.name;
+  document.getElementById('sabLabel').textContent = arch.label;
+  document.getElementById('sum-type').textContent = arch.typeDesc;
+  document.getElementById('sum-type').style.color = arch.color;
+  document.getElementById('sum-desc-short').textContent = arch.shortDesc;
+  document.getElementById('sum-desc-short').classList.add('is-set');
+  document.getElementById('progressBar').className = 'sp-bar ' + type + '-bar';
+  ['model','db','interface','reasoning'].forEach(l => document.getElementById('check-' + l).classList.add(type));
+  document.getElementById('summaryPane').classList.add(type + '-active');
+  applySuggestions(type);
+  setTimeout(() => toggleLayer('model'), 200);
+}
+
+function applySuggestions(type) {
+  document.querySelectorAll('.option-card').forEach(c => c.classList.remove('is-suggested'));
+  const sug = archetypes[type].suggestions;
+  ['model','db','interface','reasoning'].forEach(layer => {
+    const card = document.getElementById('oc-' + layer + '-' + sug[layer]);
+    if (card) card.classList.add('is-suggested');
+  });
+}
+
+function toggleLayer(id) {
+  const block = document.getElementById('layer-' + id);
+  const wasOpen = block.classList.contains('is-open');
+  document.querySelectorAll('.layer-block').forEach(b => b.classList.remove('is-open'));
+  if (!wasOpen) block.classList.add('is-open');
+}
+
+function selectOption(layer, optionId, label, colorVar) {
+  if (!state.archetype) return;
+  state[layer] = optionId;
+  const arch = archetypes[state.archetype];
+  document.querySelectorAll(`[id^="oc-${layer}-"]`).forEach(c => { c.classList.remove('is-selected'); c.style.background = ''; });
+  document.querySelectorAll(`[id^="oi-${layer}-"]`).forEach(i => { i.style.background = 'transparent'; i.style.borderColor = ''; });
+  const card = document.getElementById('oc-' + layer + '-' + optionId);
+  const ind  = document.getElementById('oi-' + layer + '-' + optionId);
+  card.classList.add('is-selected');
+  const color = optionId === 'prism' ? 'var(--prism)' : arch.color;
+  ind.style.background = color; ind.style.borderColor = color;
+  document.getElementById('preview-' + layer + '-text').textContent = label;
+  document.getElementById('preview-' + layer + '-text').classList.add('is-chosen');
+  const dot = document.querySelector('#preview-' + layer + ' .lsp-dot');
+  if (dot) { dot.style.opacity = '1'; dot.style.background = color; }
+  document.getElementById('sum-text-' + layer).textContent = label;
+  document.getElementById('sum-val-' + layer).classList.add('is-set');
+  const sumDot = document.querySelector('#sum-row-' + layer + ' .slr-dot');
+  if (sumDot) { sumDot.style.opacity = '1'; sumDot.style.background = color; }
+  document.getElementById('sum-row-' + layer).classList.add('has-selection');
+  const pane = document.getElementById('summaryPane');
+  if (layer === 'db' && optionId === 'prism') {
+    pane.classList.remove('focused-active','wide-active'); pane.classList.add('prism-active');
+  } else if (layer === 'db') {
+    pane.classList.remove('prism-active'); pane.classList.add(state.archetype + '-active');
+  }
+  const cr = document.getElementById('check-' + layer);
+  const ci = document.getElementById('chk-' + layer);
+  cr.classList.add('is-done'); ci.textContent = '✓';
+  updateProgress(); generateDescription();
+  const order = ['model','db','interface','reasoning'];
+  const idx = order.indexOf(layer);
+  for (let i = idx + 1; i < order.length; i++) {
+    if (!state[order[i]]) { setTimeout(() => toggleLayer(order[i]), 260); break; }
+  }
+}
+
+function toggleVoice() {
+  state.voice = !state.voice;
+  const btn = document.getElementById('voiceToggle');
+  const label = document.getElementById('voiceToggleLabel');
+  const details = document.getElementById('voiceDetails');
+  const sumRow = document.getElementById('sum-voice-row');
+  const sumVal = document.getElementById('sum-voice-val');
+  const sumDot = document.getElementById('sum-voice-dot');
+  btn.classList.toggle('is-on', state.voice);
+  label.textContent = state.voice ? 'On' : 'Off';
+  details.classList.toggle('is-open', state.voice);
+  sumRow.classList.toggle('is-on', state.voice);
+  sumVal.textContent = state.voice ? 'Enabled' : 'Off';
+  sumVal.classList.toggle('is-on', state.voice);
+  sumDot.classList.toggle('is-on', state.voice);
+  generateDescription();
+}
+
+function updateProgress() {
+  const done = ['model','db','interface','reasoning'].filter(l => state[l]).length;
+  document.getElementById('progressBar').style.width = (done / 4 * 100) + '%';
+  document.getElementById('progress-count').textContent = done + ' / 4';
+  const ctaBtn = document.getElementById('ctaBtn');
+  const arch = archetypes[state.archetype];
+  if (done === 4) {
+    ctaBtn.className = 'cta-btn cta-btn-primary ' + state.archetype + '-ready';
+    ctaBtn.textContent = 'Deploy your ' + arch.name + (state.voice ? ' + Voice' : '') + ' →';
+    ctaBtn.onclick = () => window.location.href = 'index.html';
+  } else {
+    ctaBtn.className = 'cta-btn cta-btn-primary';
+    ctaBtn.textContent = 'Configure all layers to continue';
+    ctaBtn.onclick = null;
+  }
+}
+
+function generateDescription() {
+  const el = document.getElementById('sum-gen-desc');
+  if (!state.archetype) return;
+  const d = archetypes[state.archetype].desc;
+  const parts = [d.base];
+  if (state.model)     parts.push(d.model[state.model]);
+  if (state.db)        parts.push(d.db[state.db]);
+  if (state.interface) parts.push(d.interface[state.interface]);
+  if (state.reasoning) parts.push(d.reasoning[state.reasoning]);
+  if (state.voice)     parts.push('Voice intelligence enabled — your entity takes calls, transcribes in real time, and merges every conversation into the unified profile.');
+  el.textContent = parts.join(' ');
+  el.classList.toggle('is-complete', !!(state.model && state.db && state.interface && state.reasoning));
+}
+
+function resetAll() {
+  Object.assign(state, { archetype: null, model: null, db: null, interface: null, reasoning: null, voice: false });
+  document.getElementById('archetypeScreen').style.display = 'flex';
+  document.getElementById('configurator').classList.remove('is-visible');
+  document.querySelectorAll('.option-card').forEach(c => { c.classList.remove('is-selected','is-suggested'); c.style.background = ''; });
+  document.querySelectorAll('.option-indicator').forEach(i => { i.style.background = 'transparent'; i.style.borderColor = ''; });
+  ['model','db','interface','reasoning'].forEach(l => {
+    document.getElementById('preview-' + l + '-text').textContent = 'Not configured';
+    document.getElementById('preview-' + l + '-text').classList.remove('is-chosen');
+    document.getElementById('sum-text-' + l).textContent = 'Not configured';
+    document.getElementById('sum-val-' + l).classList.remove('is-set');
+    document.getElementById('sum-row-' + l).classList.remove('has-selection');
+    const cr = document.getElementById('check-' + l);
+    const ci = document.getElementById('chk-' + l);
+    if (cr) { cr.classList.remove('is-done','focused','wide'); }
+    if (ci) ci.textContent = '◦';
+  });
+  // Reset voice
+  document.getElementById('voiceToggle').classList.remove('is-on');
+  document.getElementById('voiceToggleLabel').textContent = 'Off';
+  document.getElementById('voiceDetails').classList.remove('is-open');
+  document.getElementById('sum-voice-row').classList.remove('is-on');
+  document.getElementById('sum-voice-val').textContent = 'Off';
+  document.getElementById('sum-voice-val').classList.remove('is-on');
+  document.getElementById('sum-voice-dot').classList.remove('is-on');
+  const pane = document.getElementById('summaryPane');
+  pane.className = 'summary-pane';
+  document.getElementById('summaryArchBadge').className = 'summary-arch-badge';
+  document.getElementById('sabName').textContent = '—';
+  document.getElementById('sum-type').textContent = 'Select an archetype to begin';
+  document.getElementById('sum-type').style.color = '';
+  document.getElementById('sum-desc-short').textContent = '—';
+  document.getElementById('sum-desc-short').classList.remove('is-set');
+  document.getElementById('progressBar').style.width = '0%';
+  document.getElementById('progress-count').textContent = '0 / 4';
+  document.getElementById('sum-gen-desc').textContent = 'Configure the layers above — your entity description builds here in real time.';
+  document.getElementById('sum-gen-desc').classList.remove('is-complete');
+  document.getElementById('ctaBtn').className = 'cta-btn cta-btn-primary';
+  document.getElementById('ctaBtn').textContent = 'Configure all layers to continue';
+  document.querySelectorAll('.layer-block').forEach(b => b.classList.remove('is-open'));
+}
+</script>
+</body>
+</html>

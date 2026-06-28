@@ -1,0 +1,158 @@
+# XcodeGen spec for the Skipper macOS app.
+#   brew install xcodegen
+#   cd clients && xcodegen generate     # → Skipper.xcodeproj
+# Or just run ./build-local.sh, which generates, builds, embeds the kernel, and runs it.
+#
+# Direct-download app (no App Store): App Sandbox is OFF (governed by the
+# Skipper.entitlements file). Local builds are ad-hoc signed with hardened runtime
+# OFF; the release build (build-macos.sh) re-signs with Developer ID + hardened
+# runtime and notarizes.
+name: Skipper
+
+options:
+  bundleIdPrefix: org.blacksky
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+packages:
+  AgentOSKit:
+    path: AgentOSKit
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.5.0"
+  PythonKit:                       # Swift ↔ embedded CPython bridge (stage 2)
+    url: https://github.com/pvieito/PythonKit
+    branch: main
+
+targets:
+  Skipper:
+    type: application
+    platform: macOS
+    sources:
+      - path: AgentOSMac
+        excludes:
+          - "Info.plist"          # generated below via info.path — don't also bundle it as a resource
+          - "Slides/**"           # added as a folder reference (resources) next, not as source
+      - path: AgentOSMac/Slides
+        type: folder              # folder reference → ships at Contents/Resources/Slides
+        buildPhase: resources     # SlideshowView enumerates this folder at runtime — swap images freely
+    dependencies:
+      - package: AgentOSKit
+        product: AgentOSKit
+      - package: Sparkle
+        product: Sparkle
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.blacksky.skipper
+        MARKETING_VERSION: "0.1.2"
+        CURRENT_PROJECT_VERSION: "3"
+        CODE_SIGN_ENTITLEMENTS: AgentOSMac/Skipper.entitlements
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"          # ad-hoc — local run. Release uses Developer ID.
+        ENABLE_HARDENED_RUNTIME: NO       # local. build-macos.sh turns this ON for notarization.
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSHumanReadableCopyright: "© Blacksky LLC"
+    info:
+      path: AgentOSMac/Info.plist
+      properties:
+        CFBundleDisplayName: Skipper
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"     # else XcodeGen hardcodes "1.0"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"          # Sparkle compares this — must increase per release
+        LSMinimumSystemVersion: "13.0"
+        # Kernel speaks plain HTTP on loopback — allow it under ATS.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # Sparkle — wired but inert locally (no SUPublicEDKey). Set the key + flip
+        # SUEnableAutomaticChecks on at release time; the Updater stays quiet until then.
+        SUFeedURL: http://localhost:8000/appcast.xml   # LOCAL TEST — prod: https://updates.blacksky.org/skipper/appcast.xml
+        SUPublicEDKey: "jA8sQKcor7X4nJ5jVMIxRGVdXUsb6ZlFHwK1pVoB6ko="
+        SUEnableAutomaticChecks: false   # using "Check for Updates…" for the test; flip true for prod
+        SUScheduledCheckInterval: 86400
+    postCompileScripts:
+      - name: Embed AgentOS kernel
+        basedOnDependencyAnalysis: false
+        script: |
+          # Copy the compiled kernel into the bundle so KernelController can launch it.
+          # Build it first with ./build-kernel.sh (build-local.sh does this for you).
+          KERNEL_SRC="$SRCROOT/../build/nuitka/__main__.dist"
+          DEST="$TARGET_BUILD_DIR/$WRAPPER_NAME/Contents/Resources/kernel"
+          if [ ! -d "$KERNEL_SRC" ]; then
+            echo "warning: kernel dist not found at $KERNEL_SRC — run clients/build-kernel.sh"
+            exit 0
+          fi
+          rm -rf "$DEST"; mkdir -p "$DEST"
+          cp -R "$KERNEL_SRC/." "$DEST/"
+          [ -f "$DEST/__main__.bin" ] && mv "$DEST/__main__.bin" "$DEST/agentos"
+          chmod +x "$DEST/agentos" 2>/dev/null || true
+
+  # --- iOS app: embedded CPython kernel + Swift UI/Gemma. See IOS_BUILD.md. ---
+  AgentOSiOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: AgentOSiOS
+        excludes:
+          - "Info.plist"            # generated below
+          - "Resources/**"          # added as folder references next
+      - path: AgentOSiOS/Resources/app
+        type: folder                # vendored agentos + cells + hooks + yaml (stage-python.sh)
+        buildPhase: resources
+      - path: AgentOSiOS/Resources/python
+        type: folder                # assembled CPython home — stdlib + arm64 lib-dynload (assemble-python-ios.sh)
+        buildPhase: resources
+    dependencies:
+      - package: PythonKit
+      - framework: Frameworks/Python.xcframework
+        embed: true        # ships in Frameworks/; re-signed by the postBuild step below so
+                           # amfid accepts it at launch (BeeWare's signature isn't ours).
+        link: false        # don't load at launch — PythonKit dlopens libpython at runtime.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.blacksky.skipper.ios
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: "84QFS49MAP"          # Blacksky / Mario — Apple Developer Program
+        TARGETED_DEVICE_FAMILY: "1,2"          # iPhone + iPad
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: STAGE2_EMBED   # turns on the embedded-Python branch
+        ENABLE_USER_SCRIPT_SANDBOXING: NO       # the prebuild stage script writes into the project
+    info:
+      path: AgentOSiOS/Info.plist
+      properties:
+        CFBundleDisplayName: Skipper
+        UILaunchScreen:
+          UIImageRespectsSafeAreaInsets: true     # non-empty → a real launch screen (no black letterbox)
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    preBuildScripts:
+      - name: Stage AgentOS Python
+        basedOnDependencyAnalysis: false
+        script: |
+          "$SRCROOT/stage-python.sh" "$SRCROOT/AgentOSiOS/Resources/app"
+    postBuildScripts:
+      # iOS validates the code signature of ALL embedded Mach-O at launch (amfid). The
+      # Python.xcframework + its lib-dynload .so modules ship signed by BeeWare, not by us,
+      # and Xcode's "Code Sign on Copy" doesn't reliably re-seal the xcframework slice — so
+      # the app aborts in dyld`start before main (the launch crash). Force-re-sign every
+      # embedded binary with THIS build's resolved identity so amfid accepts it.
+      - name: Re-sign embedded Python (framework + .so) with app identity
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          APP="${TARGET_BUILD_DIR}/${WRAPPER_NAME}"
+          IDENT="${EXPANDED_CODE_SIGN_IDENTITY:-${CODE_SIGN_IDENTITY:--}}"
+          echo "re-signing embedded Python in $APP with identity: $IDENT"
+          # The .so extension modules in the staged CPython home (and any nested dylibs).
+          find "$APP" \( -name "*.so" -o -name "*.dylib" \) -type f -print0 \
+            | while IFS= read -r -d '' f; do
+                codesign --force --timestamp=none --sign "$IDENT" "$f"
+              done
+          # The framework bundle itself (sealed last; Xcode's final app signing wraps it).
+          if [ -d "$APP/Frameworks/Python.framework" ]; then
+            codesign --force --timestamp=none --sign "$IDENT" "$APP/Frameworks/Python.framework"
+          fi
+          echo "re-sign complete"

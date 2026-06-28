@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Model Layer — AgentOS · Blacksky Labs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;1,9..144,300;1,9..144,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --black: #060608;
+  --off-black: #0c0c10;
+  --panel: #101014;
+  --border: #1a1a22;
+  --border-light: #262630;
+  --white: #f0eeea;
+  --white-dim: #9a968f;
+  --white-mid: #524e50;
+  --white-faint: #28262a;
+  --ao-green: #c8f060;
+  --cloud: #a0c8ff;
+  --local: #f0c060;
+  --moe: #d0a0ff;
+  --swap: #60f0c0;
+  --grid: rgba(255,255,255,0.015);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--black); color: var(--white);
+  font-family: 'DM Mono', monospace; font-size: 14px;
+  line-height: 1.6; overflow-x: hidden;
+}
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 48px 48px; pointer-events: none; z-index: 0;
+}
+
+/* NAV */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 48px; height: 60px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(6,6,8,0.96); backdrop-filter: blur(16px);
+}
+.nav-left { display: flex; align-items: center; gap: 20px; }
+.nav-back {
+  display: flex; align-items: center; gap: 6px; text-decoration: none;
+  color: var(--white-dim); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; padding-right: 20px;
+  border-right: 1px solid var(--border); transition: color 0.2s;
+}
+.nav-back:hover { color: var(--white); }
+.nav-back::before { content: '←'; margin-right: 4px; }
+.nav-title {
+  font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--white-dim); text-decoration: none;
+}
+.nav-title span { color: var(--ao-green); }
+.nav-chapter {
+  font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--white-mid); padding: 4px 10px; border: 1px solid var(--border);
+  border-radius: 2px; background: var(--panel);
+}
+.nav-links { display: flex; gap: 28px; list-style: none; }
+.nav-links a {
+  color: var(--white-dim); text-decoration: none; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase; transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--white); }
+
+/* HERO */
+.hero {
+  position: relative; min-height: 100vh; display: flex;
+  flex-direction: column; justify-content: flex-end;
+  padding: 120px 48px 80px; overflow: hidden; z-index: 1;
+  border-bottom: 1px solid var(--border);
+}
+
+/* HERO VISUAL — model swap diagram */
+.hero-visual {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  width: 560px; height: 480px; pointer-events: none;
+  opacity: 0; animation: fadeIn 1.2s ease forwards 0.8s;
+}
+
+.hv-entity {
+  position: absolute; top: 50%; left: 40px; transform: translateY(-50%);
+  width: 100px; height: 100px; border: 1px solid rgba(200,240,96,0.3);
+  background: rgba(200,240,96,0.05); border-radius: 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+.hve-label { font-size: 8px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--white-faint); }
+.hve-name { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 800; color: var(--ao-green); }
+
+.hv-pipe {
+  position: absolute; top: 50%; left: 152px; transform: translateY(-50%);
+  width: 60px; height: 2px; background: var(--border-light);
+}
+.hv-pipe::after {
+  content: ''; position: absolute; right: 0; top: -3px;
+  width: 0; height: 0;
+  border-left: 6px solid var(--border-light);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+
+.hv-models {
+  position: absolute; left: 220px; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 10px;
+}
+
+.hv-model {
+  width: 200px; padding: 10px 14px; border: 1px solid var(--border);
+  background: var(--off-black); border-radius: 3px;
+  display: flex; align-items: center; gap: 10px;
+  transition: all 0.3s; cursor: pointer;
+}
+.hv-model.active { border-color: rgba(160,200,255,0.4); background: rgba(160,200,255,0.06); }
+.hv-model-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.hv-model-name { font-size: 11px; font-family: 'Syne', sans-serif; font-weight: 600; }
+.hv-model-sub { font-size: 9px; color: var(--white-faint); letter-spacing: 0.06em; }
+
+.hv-connector {
+  position: absolute; left: 150px; width: 70px; top: 50%;
+  transform: translateY(-50%); display: flex; flex-direction: column;
+  gap: 18px; align-items: flex-end;
+}
+.hvc-line {
+  height: 1px; background: var(--border);
+  transition: background 0.3s; width: 100%;
+}
+.hvc-line.active { background: rgba(160,200,255,0.4); }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+.hero-eyebrow {
+  font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--cloud);
+  margin-bottom: 28px; opacity: 0; animation: fadeUp 0.8s ease forwards 0.2s;
+  display: flex; align-items: center; gap: 12px;
+}
+.hero-eyebrow::before { content: ''; width: 32px; height: 1px; background: var(--cloud); }
+
+.hero-headline {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: clamp(48px, 6.5vw, 88px); line-height: 0.95;
+  letter-spacing: -0.025em; max-width: 760px;
+  opacity: 0; animation: fadeUp 0.8s ease forwards 0.4s;
+}
+.hero-headline .hl-cloud { color: var(--cloud); }
+.hero-headline .hl-local { color: var(--local); }
+.hero-headline .hl-dim { font-style: italic; font-weight: 300; font-family: 'Fraunces', serif; color: var(--white-dim); }
+
+.hero-sub {
+  font-family: 'Fraunces', serif; font-style: italic;
+  font-size: clamp(16px, 1.8vw, 22px); color: var(--white-dim);
+  max-width: 580px; margin-top: 28px; line-height: 1.55;
+  opacity: 0; animation: fadeUp 0.8s ease forwards 0.6s;
+}
+
+.hero-meta {
+  display: flex; align-items: center; gap: 32px; margin-top: 48px;
+  opacity: 0; animation: fadeUp 0.8s ease forwards 0.8s; flex-wrap: wrap;
+}
+.hero-meta-item { display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--white-dim); }
+.meta-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* LAYER NAV */
+.layer-nav {
+  position: sticky; top: 60px; z-index: 50;
+  background: rgba(6,6,8,0.96); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border); padding: 0 48px;
+  display: flex; overflow-x: auto;
+}
+.layer-nav-item {
+  padding: 14px 20px; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--white-faint); text-decoration: none; border-right: 1px solid var(--border);
+  white-space: nowrap; transition: color 0.2s, background 0.2s;
+  display: flex; align-items: center; gap: 8px;
+}
+.layer-nav-item:hover { color: var(--white-dim); background: rgba(255,255,255,0.02); }
+.layer-nav-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+/* THE SWAP PRINCIPLE */
+.swap-section {
+  position: relative; z-index: 1; border-bottom: 1px solid var(--border);
+  padding: 80px 48px;
+}
+
+.swap-inner {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: start; max-width: 1100px;
+}
+
+.swap-left {}
+.swap-eyebrow {
+  font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--swap);
+  margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
+}
+.swap-eyebrow::before { content: ''; width: 20px; height: 1px; background: var(--swap); }
+
+.swap-headline {
+  font-family: 'Syne', sans-serif; font-size: clamp(32px, 3.5vw, 46px);
+  font-weight: 800; letter-spacing: -0.02em; line-height: 1.0; margin-bottom: 20px;
+}
+.swap-headline em { font-style: italic; font-weight: 300; font-family: 'Fraunces', serif; color: var(--white-dim); }
+
+.swap-desc { font-size: 13px; color: var(--white-dim); line-height: 1.85; margin-bottom: 16px; }
+.swap-desc strong { color: var(--white); font-weight: 500; }
+
+.swap-right {}
+
+/* SWAP DIAGRAM */
+.swap-diagram {
+  border: 1px solid var(--border); background: var(--off-black); overflow: hidden;
+}
+
+.sd-header {
+  padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--panel);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sdh-label { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--white-mid); }
+.sdh-live { font-size: 9px; color: var(--swap); letter-spacing: 0.12em; display: flex; align-items: center; gap: 6px; }
+.sdh-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--swap); animation: blink 2s ease-in-out infinite; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+.sd-entity {
+  padding: 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 14px;
+}
+.sd-entity-block {
+  width: 56px; height: 56px; border: 1px solid rgba(200,240,96,0.3);
+  background: rgba(200,240,96,0.05); border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+  color: var(--ao-green); flex-shrink: 0;
+}
+.sd-entity-info {}
+.sd-entity-name { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+.sd-entity-sub { font-size: 10px; color: var(--white-faint); letter-spacing: 0.08em; }
+
+.sd-current {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(160,200,255,0.04);
+}
+.sdc-label { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--white-faint); }
+.sdc-model {
+  display: flex; align-items: center; gap: 8px; font-family: 'Syne', sans-serif;
+  font-size: 13px; font-weight: 700; color: var(--cloud);
+}
+.sdc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cloud); flex-shrink: 0; }
+
+.sd-options { display: flex; flex-direction: column; }
+
+.sd-option {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px; cursor: pointer;
+  transition: background 0.2s; position: relative;
+}
+.sd-option:last-child { border-bottom: none; }
+.sd-option:hover { background: rgba(255,255,255,0.02); }
+.sd-option.is-active { background: rgba(160,200,255,0.04); }
+
+.sdo-radio {
+  width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--border-light);
+  flex-shrink: 0; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+}
+.sd-option.is-active .sdo-radio { border-color: var(--cloud); }
+.sdo-radio-inner { width: 6px; height: 6px; border-radius: 50%; background: var(--cloud); opacity: 0; transition: opacity 0.2s; }
+.sd-option.is-active .sdo-radio-inner { opacity: 1; }
+
+.sdo-info { flex: 1; }
+.sdo-name { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.sdo-sub { font-size: 10px; color: var(--white-faint); letter-spacing: 0.06em; }
+
+.sdo-tag {
+  font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 2px; border: 1px solid var(--border); color: var(--white-mid);
+}
+
+.sd-footer {
+  padding: 12px 20px; background: var(--panel); border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px; font-size: 10px; color: var(--white-faint);
+}
+.sdf-icon { color: var(--ao-green); font-size: 12px; }
+
+/* MODEL SECTIONS */
+.model-section {
+  position: relative; z-index: 1; border-bottom: 1px solid var(--border);
+}
+.section-inner { display: grid; grid-template-columns: 380px 1fr; min-height: 500px; }
+.section-left {
+  padding: 64px 40px; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 0;
+  position: sticky; top: 113px; height: fit-content;
+}
+.section-number {
+  font-family: 'Syne', sans-serif; font-size: 72px; font-weight: 800;
+  line-height: 1; letter-spacing: -0.05em; margin-bottom: 20px; opacity: 0.1;
+}
+.section-tag {
+  font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+}
+.section-tag-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.section-title {
+  font-family: 'Syne', sans-serif; font-size: clamp(26px, 2.5vw, 36px);
+  font-weight: 800; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 18px;
+}
+.section-desc { font-size: 12px; color: var(--white-dim); line-height: 1.9; margin-bottom: 20px; }
+.section-desc strong { color: var(--white); font-weight: 500; }
+.section-right { padding: 64px 48px; display: flex; flex-direction: column; gap: 24px; }
+
+/* MODEL CARDS */
+.model-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); }
+
+.model-card {
+  background: var(--off-black); padding: 28px 24px;
+  transition: background 0.2s; position: relative; overflow: hidden;
+}
+.model-card:hover { background: var(--panel); }
+.model-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; opacity: 0; transition: opacity 0.3s;
+}
+.model-card:hover::before { opacity: 1; }
+
+.mc-provider { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 8px; }
+.mc-name { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: -0.01em; }
+.mc-desc { font-size: 11px; color: var(--white-dim); line-height: 1.7; margin-bottom: 14px; }
+.mc-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+.mc-tag { font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 7px; border-radius: 2px; border: 1px solid var(--border); color: var(--white-mid); }
+.mc-tradeoff { padding-top: 12px; border-top: 1px solid var(--border); font-size: 10px; color: var(--white-faint); letter-spacing: 0.04em; line-height: 1.6; }
+.mc-tradeoff span { display: block; margin-bottom: 3px; }
+.mc-tradeoff .pro::before { content: '+ '; color: var(--ao-green); }
+.mc-tradeoff .con::before { content: '− '; color: var(--white-faint); }
+
+/* TRADEOFF TABLE */
+.tradeoff-table {
+  border: 1px solid var(--border); overflow: hidden;
+}
+
+.tt-header {
+  display: grid; grid-template-columns: 160px 1fr 1fr 1fr 1fr;
+  background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.tt-col-header {
+  padding: 12px 16px; font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--white-faint); border-right: 1px solid var(--border);
+}
+.tt-col-header:last-child { border-right: none; }
+.tt-col-header.col-local { color: var(--local); }
+.tt-col-header.col-cloud { color: var(--cloud); }
+.tt-col-header.col-vertex { color: var(--cloud); opacity: 0.7; }
+.tt-col-header.col-moe { color: var(--moe); }
+
+.tt-row {
+  display: grid; grid-template-columns: 160px 1fr 1fr 1fr 1fr;
+  border-bottom: 1px solid var(--border); transition: background 0.2s;
+}
+.tt-row:last-child { border-bottom: none; }
+.tt-row:hover { background: rgba(255,255,255,0.01); }
+
+.tt-cell {
+  padding: 14px 16px; font-size: 11px; color: var(--white-dim);
+  border-right: 1px solid var(--border); display: flex; align-items: center;
+}
+.tt-cell:last-child { border-right: none; }
+.tt-cell.row-label { color: var(--white-faint); font-size: 10px; letter-spacing: 0.08em; }
+.tt-good { color: var(--ao-green); }
+.tt-mid  { color: var(--local); }
+.tt-low  { color: var(--white-faint); }
+
+/* NOTE BOX */
+.note-box {
+  padding: 20px 24px; border: 1px solid var(--border-light);
+  background: rgba(255,255,255,0.01); border-radius: 3px;
+  display: flex; align-items: flex-start; gap: 14px;
+}
+.note-icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+.note-text { font-size: 12px; color: var(--white-dim); line-height: 1.75; }
+.note-text strong { color: var(--ao-green); font-weight: 500; }
+
+/* MOE SECTION */
+.moe-section {
+  position: relative; z-index: 1; border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(208,160,255,0.02) 0%, transparent 40%);
+}
+.moe-inner { display: grid; grid-template-columns: 380px 1fr; }
+.moe-left {
+  padding: 64px 40px; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 0;
+  position: sticky; top: 113px; height: fit-content;
+}
+.moe-right { padding: 64px 48px; display: flex; flex-direction: column; gap: 24px; }
+
+.moe-diagram {
+  border: 1px solid rgba(208,160,255,0.2); background: rgba(208,160,255,0.03);
+  overflow: hidden;
+}
+.md-header {
+  padding: 16px 20px; border-bottom: 1px solid rgba(208,160,255,0.15);
+  background: rgba(208,160,255,0.05); display: flex; align-items: center; gap: 10px;
+}
+.md-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--moe); flex-shrink: 0; }
+.md-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: var(--moe); letter-spacing: 0.04em; }
+
+.md-flow { padding: 24px; display: flex; flex-direction: column; gap: 0; }
+
+.mdf-query {
+  padding: 14px 18px; border: 1px solid rgba(208,160,255,0.2);
+  background: rgba(208,160,255,0.05); border-radius: 3px; margin-bottom: 16px;
+  font-size: 12px; color: var(--white-dim); font-family: 'Fraunces', serif; font-style: italic;
+}
+
+.mdf-router {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.mdfr-line { flex: 1; height: 1px; background: rgba(208,160,255,0.2); }
+.mdfr-label {
+  font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--moe);
+  padding: 4px 12px; border: 1px solid rgba(208,160,255,0.2); border-radius: 2px;
+  background: rgba(208,160,255,0.06);
+}
+
+.mdf-experts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.mdf-expert {
+  padding: 12px 14px; border: 1px solid var(--border); background: var(--off-black);
+  border-radius: 3px; text-align: center;
+}
+.mdf-expert.is-active { border-color: rgba(208,160,255,0.4); background: rgba(208,160,255,0.06); }
+.mdfe-name { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; margin-bottom: 3px; }
+.mdfe-spec { font-size: 9px; color: var(--white-faint); letter-spacing: 0.06em; }
+.mdf-expert.is-active .mdfe-name { color: var(--moe); }
+.mdf-expert.is-active .mdfe-spec { color: rgba(208,160,255,0.5); }
+
+.mdf-result {
+  padding: 12px 16px; border: 1px solid rgba(200,240,96,0.2);
+  background: rgba(200,240,96,0.04); border-radius: 3px;
+  font-size: 11px; color: var(--ao-green); display: flex; align-items: center; gap: 8px;
+}
+
+/* CTA */
+.llm-cta {
+  position: relative; z-index: 1; padding: 100px 48px; text-align: center; overflow: hidden;
+}
+.llm-cta-bg {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 50% 60% at 50% 100%, rgba(160,200,255,0.04) 0%, transparent 70%);
+}
+.cta-inner { max-width: 620px; margin: 0 auto; position: relative; }
+.cta-eyebrow { font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--cloud); margin-bottom: 20px; }
+.cta-headline { font-family: 'Syne', sans-serif; font-size: clamp(32px, 4vw, 52px); font-weight: 800; letter-spacing: -0.03em; line-height: 0.95; margin-bottom: 18px; }
+.cta-sub { font-family: 'Fraunces', serif; font-style: italic; font-size: 16px; color: var(--white-dim); margin-bottom: 40px; line-height: 1.55; }
+.cta-actions { display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap; }
+.btn-primary {
+  background: var(--white); color: var(--black); padding: 13px 28px;
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase; border: none; cursor: pointer;
+  text-decoration: none; border-radius: 2px; transition: background 0.2s, transform 0.2s;
+}
+.btn-primary:hover { background: var(--ao-green); transform: translateY(-1px); }
+.btn-outline {
+  color: var(--white-dim); padding: 13px 28px; font-family: 'DM Mono', monospace;
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+  text-decoration: none; border: 1px solid var(--border-light); border-radius: 2px;
+  transition: color 0.2s, border-color 0.2s;
+}
+.btn-outline:hover { color: var(--white); border-color: var(--white-dim); }
+
+footer {
+  position: relative; z-index: 1; border-top: 1px solid var(--border);
+  padding: 36px 48px; display: flex; align-items: center;
+  justify-content: space-between; flex-wrap: wrap; gap: 20px;
+}
+.footer-brand { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }
+.footer-brand span { color: var(--ao-green); }
+.footer-copy { font-size: 10px; color: var(--white-faint); }
+.footer-links { display: flex; gap: 20px; flex-wrap: wrap; }
+.footer-links a { font-size: 10px; color: var(--white-faint); text-decoration: none; letter-spacing: 0.1em; text-transform: uppercase; transition: color 0.2s; }
+.footer-links a:hover { color: var(--white); }
+
+@media (max-width: 960px) {
+  nav { padding: 0 20px; }
+  .nav-links { display: none; }
+  .hero { padding: 100px 24px 60px; }
+  .hero-visual { display: none; }
+  .layer-nav { padding: 0 24px; }
+  .swap-section { padding: 60px 24px; }
+  .swap-inner { grid-template-columns: 1fr; gap: 40px; }
+  .model-section .section-inner, .moe-inner { grid-template-columns: 1fr; }
+  .section-left, .moe-left { position: static; padding: 44px 24px 28px; border-right: none; border-bottom: 1px solid var(--border); }
+  .section-right, .moe-right { padding: 28px 24px 44px; }
+  .model-grid { grid-template-columns: 1fr; }
+  .tt-header, .tt-row { grid-template-columns: 120px 1fr 1fr 1fr 1fr; }
+  .mdf-experts { grid-template-columns: 1fr; }
+  .llm-cta { padding: 60px 24px; }
+  footer { padding: 28px 24px; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-left">
+    <a href="index.html" class="nav-back">AgentOS</a>
+    <a href="index.html" class="nav-title">Agent<span>OS</span></a>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#swap">The Swap</a></li>
+    <li><a href="#cloud">Cloud Models</a></li>
+    <li><a href="#local">Local Models</a></li>
+    <li><a href="#moe">MoE</a></li>
+  </ul>
+  <span class="nav-chapter">Model Layer</span>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-visual">
+    <div class="hv-entity">
+      <div class="hve-label">Entity</div>
+      <div class="hve-name">AO</div>
+    </div>
+    <div class="hv-pipe"></div>
+    <div class="hv-models">
+      <div class="hv-model active">
+        <div class="hv-model-dot" style="background:var(--cloud);"></div>
+        <div><div class="hv-model-name" style="color:var(--cloud);">Cloud LLM</div><div class="hv-model-sub">Together AI · Active</div></div>
+      </div>
+      <div class="hv-model">
+        <div class="hv-model-dot" style="background:var(--local);"></div>
+        <div><div class="hv-model-name">Local LLM</div><div class="hv-model-sub">Llama · MLX</div></div>
+      </div>
+      <div class="hv-model">
+        <div class="hv-model-dot" style="background:var(--cloud); opacity:0.6;"></div>
+        <div><div class="hv-model-name">Vertex AI</div><div class="hv-model-sub">Gemini · GCP</div></div>
+      </div>
+      <div class="hv-model">
+        <div class="hv-model-dot" style="background:var(--moe);"></div>
+        <div><div class="hv-model-name">MoE</div><div class="hv-model-sub">Expert Routing</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-eyebrow">AgentOS · Model Layer</div>
+  <h1 class="hero-headline">
+    <span class="hl-cloud">Cloud</span> or <span class="hl-local">local.</span><br>
+    <span class="hl-dim">Your model.</span><br>
+    Your call.
+  </h1>
+  <p class="hero-sub">Your entity runs on whatever model you choose. Swap it from your dashboard at any time. The entity stays intact — only the inference engine underneath changes.</p>
+
+  <div class="hero-meta">
+    <div class="hero-meta-item"><span class="meta-dot" style="background:var(--cloud);"></span>Cloud Models</div>
+    <div class="hero-meta-item"><span class="meta-dot" style="background:var(--local);"></span>Local Models</div>
+    <div class="hero-meta-item"><span class="meta-dot" style="background:var(--moe);"></span>MoE Routing</div>
+    <div class="hero-meta-item"><span class="meta-dot" style="background:var(--swap);"></span>Dashboard Controlled</div>
+  </div>
+</section>
+
+<!-- LAYER NAV -->
+<div class="layer-nav">
+  <a href="#swap"  class="layer-nav-item"><span class="layer-nav-dot" style="background:var(--swap);"></span>The Swap</a>
+  <a href="#cloud" class="layer-nav-item"><span class="layer-nav-dot" style="background:var(--cloud);"></span>Cloud Models</a>
+  <a href="#local" class="layer-nav-item"><span class="layer-nav-dot" style="background:var(--local);"></span>Local Models</a>
+  <a href="#moe"   class="layer-nav-item"><span class="layer-nav-dot" style="background:var(--moe);"></span>Mixture of Experts</a>
+</div>
+
+<!-- THE SWAP PRINCIPLE -->
+<section class="swap-section" id="swap">
+  <div class="swap-inner">
+    <div class="swap-left">
+      <div class="swap-eyebrow">The Core Principle</div>
+      <h2 class="swap-headline">One entity.<br><em>Any model.</em></h2>
+      <p class="swap-desc">AgentOS is model-agnostic by design. Your entity — its knowledge, its behavior, its configuration — is completely separate from the model powering it. <strong>Swap the model and nothing breaks.</strong></p>
+      <p class="swap-desc">Start with a cloud model for speed. Switch to local when your data is sensitive. Move to MoE when your domain demands deeper reasoning. The entity doesn't care. It just keeps working.</p>
+      <p class="swap-desc">Every model swap happens from your dashboard. No engineering. No downtime. No rebuilding anything.</p>
+    </div>
+    <div class="swap-right">
+      <div class="swap-diagram">
+        <div class="sd-header">
+          <div class="sdh-label">Model Configuration · Dashboard</div>
+          <div class="sdh-live"><div class="sdh-dot"></div>Live Setting</div>
+        </div>
+        <div class="sd-entity">
+          <div class="sd-entity-block">AO</div>
+          <div class="sd-entity-info">
+            <div class="sd-entity-name">Your Entity</div>
+            <div class="sd-entity-sub">Knowledge, behavior, and config stay intact across all model changes</div>
+          </div>
+        </div>
+        <div class="sd-current">
+          <div class="sdc-label">Current Model</div>
+          <div class="sdc-model"><div class="sdc-dot"></div>Cloud LLM · Together AI</div>
+        </div>
+        <div class="sd-options">
+          <div class="sd-option is-active">
+            <div class="sdo-radio"><div class="sdo-radio-inner"></div></div>
+            <div class="sdo-info">
+              <div class="sdo-name" style="color:var(--cloud);">Cloud LLM</div>
+              <div class="sdo-sub">Together AI · 70B parameters · Max capability</div>
+            </div>
+            <div class="sdo-tag" style="color:var(--cloud);border-color:rgba(160,200,255,0.3);">Active</div>
+          </div>
+          <div class="sd-option">
+            <div class="sdo-radio"><div class="sdo-radio-inner"></div></div>
+            <div class="sdo-info">
+              <div class="sdo-name">Local LLM</div>
+              <div class="sdo-sub">Llama via MLX · On-device · No egress</div>
+            </div>
+            <div class="sdo-tag">Private</div>
+          </div>
+          <div class="sd-option">
+            <div class="sdo-radio"><div class="sdo-radio-inner"></div></div>
+            <div class="sdo-info">
+              <div class="sdo-name">Vertex AI</div>
+              <div class="sdo-sub">Gemini · GCP · Enterprise compliance</div>
+            </div>
+            <div class="sdo-tag">Enterprise</div>
+          </div>
+          <div class="sd-option">
+            <div class="sdo-radio"><div class="sdo-radio-inner"></div></div>
+            <div class="sdo-info">
+              <div class="sdo-name" style="color:var(--moe);">MoE Framework</div>
+              <div class="sdo-sub">Mixture of Experts · Query-level routing</div>
+            </div>
+            <div class="sdo-tag" style="color:var(--moe);border-color:rgba(208,160,255,0.3);">Advanced</div>
+          </div>
+        </div>
+        <div class="sd-footer">
+          <div class="sdf-icon">⟳</div>
+          Changes apply immediately. No downtime. No rebuild required.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CLOUD MODELS -->
+<section class="model-section" id="cloud">
+  <div class="section-inner">
+    <div class="section-left">
+      <div class="section-number" style="color:var(--cloud);">01</div>
+      <div class="section-tag" style="color:var(--cloud);">
+        <span class="section-tag-dot" style="background:var(--cloud);"></span>Cloud Models
+      </div>
+      <h2 class="section-title">Maximum capability. On demand.</h2>
+      <p class="section-desc">Cloud models give your entity access to the most powerful language models available — 70B+ parameters, massive context windows, and the ability to scale to any volume without managing infrastructure.</p>
+      <p class="section-desc"><strong>Best when:</strong> you need maximum reasoning depth, your data isn't privacy-sensitive, or your entity handles complex multi-step queries at scale.</p>
+    </div>
+    <div class="section-right">
+      <div class="model-grid">
+        <div class="model-card" style="--mc:var(--cloud);">
+          <div style="height:2px;background:var(--cloud);position:absolute;top:0;left:0;right:0;"></div>
+          <div class="mc-provider" style="color:var(--cloud);">Together AI</div>
+          <div class="mc-name">Cloud LLM</div>
+          <div class="mc-desc">Open-source frontier models at 70B+ parameters. Llama, Mistral, and others — the most capable open models running at scale in the cloud.</div>
+          <div class="mc-tags"><span class="mc-tag">70B+</span><span class="mc-tag">Frontier</span><span class="mc-tag">Scalable</span></div>
+          <div class="mc-tradeoff">
+            <span class="pro">Maximum reasoning depth</span>
+            <span class="pro">Scales to any volume</span>
+            <span class="con">Data leaves your infrastructure</span>
+          </div>
+        </div>
+        <div class="model-card">
+          <div class="mc-provider" style="color:var(--cloud); opacity:0.7;">Google Cloud</div>
+          <div class="mc-name">Vertex AI</div>
+          <div class="mc-desc">Gemini models on GCP infrastructure. Enterprise compliance, data residency guarantees, and audit logging built in. The enterprise-grade cloud option.</div>
+          <div class="mc-tags"><span class="mc-tag">Gemini</span><span class="mc-tag">Enterprise</span><span class="mc-tag">Compliant</span></div>
+          <div class="mc-tradeoff">
+            <span class="pro">Enterprise compliance</span>
+            <span class="pro">GCP data residency</span>
+            <span class="con">Higher cost per token</span>
+          </div>
+        </div>
+      </div>
+      <div class="note-box">
+        <div class="note-icon">◈</div>
+        <div class="note-text">Cloud models are the default for most entities. They give you the fastest path to a capable entity without any infrastructure setup. <strong>Switch to local any time privacy requirements change.</strong></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LOCAL MODELS -->
+<section class="model-section" id="local">
+  <div class="section-inner">
+    <div class="section-left">
+      <div class="section-number" style="color:var(--local);">02</div>
+      <div class="section-tag" style="color:var(--local);">
+        <span class="section-tag-dot" style="background:var(--local);"></span>Local Models
+      </div>
+      <h2 class="section-title">Your data never leaves.</h2>
+      <p class="section-desc">Local models run inference entirely on your machine. No data is sent to external services. No API calls. No egress. <strong>Your conversations, your queries, your records — private by architecture.</strong></p>
+      <p class="section-desc"><strong>Best when:</strong> your entity handles sensitive business data, compliance requirements restrict cloud processing, or you want zero marginal cost on inference.</p>
+    </div>
+    <div class="section-right">
+      <div class="model-grid">
+        <div class="model-card" style="position:relative;">
+          <div style="height:2px;background:var(--local);position:absolute;top:0;left:0;right:0;"></div>
+          <div class="mc-provider" style="color:var(--local);">Meta · Apple Silicon</div>
+          <div class="mc-name">Llama via MLX</div>
+          <div class="mc-desc">Llama models running locally via Apple's MLX framework. Optimized for M-series chips — M3 Max runs inference at zero marginal cost with no data egress whatsoever.</div>
+          <div class="mc-tags"><span class="mc-tag">On-device</span><span class="mc-tag">MLX</span><span class="mc-tag">Zero egress</span><span class="mc-tag">M-series</span></div>
+          <div class="mc-tradeoff">
+            <span class="pro">Complete data privacy</span>
+            <span class="pro">Zero marginal inference cost</span>
+            <span class="con">Smaller context window than cloud</span>
+          </div>
+        </div>
+        <div class="model-card">
+          <div class="mc-provider" style="color:var(--local); opacity:0.7;">Google · Local</div>
+          <div class="mc-name">Gemma</div>
+          <div class="mc-desc">Google's lightweight open model family. Efficient, fast, and capable for focused domain tasks. Runs locally without requiring M-series hardware.</div>
+          <div class="mc-tags"><span class="mc-tag">Lightweight</span><span class="mc-tag">Fast</span><span class="mc-tag">Local</span></div>
+          <div class="mc-tradeoff">
+            <span class="pro">Runs on broader hardware</span>
+            <span class="pro">Fast for focused queries</span>
+            <span class="con">Less depth than 70B cloud models</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TRADEOFF TABLE -->
+      <div class="tradeoff-table">
+        <div class="tt-header">
+          <div class="tt-col-header">Dimension</div>
+          <div class="tt-col-header col-local">Local</div>
+          <div class="tt-col-header col-cloud">Cloud</div>
+          <div class="tt-col-header col-vertex">Vertex</div>
+          <div class="tt-col-header col-moe">MoE</div>
+        </div>
+        <div class="tt-row">
+          <div class="tt-cell row-label">Privacy</div>
+          <div class="tt-cell tt-good">Complete</div>
+          <div class="tt-cell tt-low">External</div>
+          <div class="tt-cell tt-mid">Residency</div>
+          <div class="tt-cell tt-low">External</div>
+        </div>
+        <div class="tt-row">
+          <div class="tt-cell row-label">Capability</div>
+          <div class="tt-cell tt-mid">High</div>
+          <div class="tt-cell tt-good">Maximum</div>
+          <div class="tt-cell tt-good">Maximum</div>
+          <div class="tt-cell tt-good">Deepest</div>
+        </div>
+        <div class="tt-row">
+          <div class="tt-cell row-label">Cost / query</div>
+          <div class="tt-cell tt-good">Zero</div>
+          <div class="tt-cell tt-mid">Per token</div>
+          <div class="tt-cell tt-low">Premium</div>
+          <div class="tt-cell tt-mid">Per token</div>
+        </div>
+        <div class="tt-row">
+          <div class="tt-cell row-label">Scale</div>
+          <div class="tt-cell tt-low">Device-bound</div>
+          <div class="tt-cell tt-good">Unlimited</div>
+          <div class="tt-cell tt-good">Unlimited</div>
+          <div class="tt-cell tt-good">Unlimited</div>
+        </div>
+        <div class="tt-row">
+          <div class="tt-cell row-label">Compliance</div>
+          <div class="tt-cell tt-good">Full control</div>
+          <div class="tt-cell tt-mid">Standard</div>
+          <div class="tt-cell tt-good">Enterprise</div>
+          <div class="tt-cell tt-mid">Standard</div>
+        </div>
+      </div>
+
+      <div class="note-box">
+        <div class="note-icon">⟳</div>
+        <div class="note-text">The model layer is <strong>swappable from your dashboard</strong>. Run cloud during development. Switch to local when you go into production with sensitive data. Switch back if your requirements change.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MOE -->
+<section class="moe-section" id="moe">
+  <div class="moe-inner">
+    <div class="moe-left">
+      <div class="section-number" style="color:var(--moe);">03</div>
+      <div class="section-tag" style="color:var(--moe);">
+        <span class="section-tag-dot" style="background:var(--moe);"></span>
+        Mixture of Experts
+      </div>
+      <h2 class="section-title">Not one model. The right model for every question.</h2>
+      <p class="section-desc">A standard model handles every query the same way. A Mixture of Experts framework routes each query to the specialist model best equipped to answer it — producing deeper, more accurate responses without the overhead of running a single massive model on everything.</p>
+      <p class="section-desc"><strong>Best when:</strong> your entity spans multiple knowledge areas, query types vary significantly, or you're running a large-scale Wide oracle that needs deep accuracy across a broad surface.</p>
+      <p class="section-desc" style="color:var(--white-faint); font-size:11px;">MoE is the default recommendation for Eve/Wide entities running on Prism.</p>
+    </div>
+    <div class="moe-right">
+      <div class="moe-diagram">
+        <div class="md-header">
+          <div class="md-dot"></div>
+          <div class="md-title">MoE Routing · Live Query</div>
+        </div>
+        <div class="md-flow">
+          <div class="mdf-query">"What bills introduced this session address housing policy and who are the primary sponsors?"</div>
+          <div class="mdf-router">
+            <div class="mdfr-line"></div>
+            <div class="mdfr-label">Expert Router</div>
+            <div class="mdfr-line"></div>
+          </div>
+          <div class="mdf-experts">
+            <div class="mdf-expert is-active">
+              <div class="mdfe-name">Legislative</div>
+              <div class="mdfe-spec">Bills &amp; sessions</div>
+            </div>
+            <div class="mdf-expert is-active">
+              <div class="mdfe-name">Policy</div>
+              <div class="mdfe-spec">Domain classification</div>
+            </div>
+            <div class="mdf-expert">
+              <div class="mdfe-name">Sentiment</div>
+              <div class="mdfe-spec">Public opinion</div>
+            </div>
+            <div class="mdf-expert">
+              <div class="mdfe-name">Financial</div>
+              <div class="mdfe-spec">Budget &amp; funding</div>
+            </div>
+            <div class="mdf-expert is-active">
+              <div class="mdfe-name">Entity</div>
+              <div class="mdfe-spec">People &amp; orgs</div>
+            </div>
+            <div class="mdf-expert">
+              <div class="mdfe-name">Temporal</div>
+              <div class="mdfe-spec">Dates &amp; timelines</div>
+            </div>
+          </div>
+          <div class="mdf-result">
+            ✓ Routed to 3 specialists · Response assembled · Deeper than single model
+          </div>
+        </div>
+      </div>
+
+      <div class="note-box">
+        <div class="note-icon">⟳</div>
+        <div class="note-text">MoE is <strong>a reasoning architecture choice</strong> on top of your base model. Enable it from your dashboard when your entity's query complexity demands it. Start simple — upgrade when your domain grows.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="llm-cta">
+  <div class="llm-cta-bg"></div>
+  <div class="cta-inner">
+    <div class="cta-eyebrow">AgentOS · Model Layer</div>
+    <h2 class="cta-headline">Your model. Your choice. Always.</h2>
+    <p class="cta-sub">Cloud for scale. Local for privacy. MoE for depth. Switch from your dashboard at any time — no rebuild, no downtime.</p>
+    <div class="cta-actions">
+      <a href="configurator.html" class="btn-primary">Build Your Entity</a>
+      <a href="database.html" class="btn-outline">Database Layer →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div>
+    <div class="footer-brand">Agent<span>OS</span> · Blacksky Labs</div>
+    <div class="footer-copy">© 2026 Blacksky LLC — All rights reserved</div>
+  </div>
+  <div class="footer-links">
+    <a href="index.html">AgentOS</a>
+    <a href="reasoning.html">Reasoning Layer</a>
+    <a href="database.html">Database Layer</a>
+    <a href="configurator.html">Configurator</a>
+    <a href="https://blackskymedia.org/">Blacksky Labs</a>
+  </div>
+</footer>
+
+</body>
+</html>

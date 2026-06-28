@@ -15,6 +15,8 @@ import asyncio
 import sqlite3
 from pathlib import Path
 
+from agentos.paths import namespace_dir
+
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS turns (
@@ -33,7 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_turns_session_id ON turns(session_id, id);
 
 def db_path_for(namespace: str, repo_root: Path | str = ".") -> Path:
     """Return the canonical SQLite path for a namespace's memory DB."""
-    return Path(repo_root) / "data" / namespace / "memory.db"
+    return namespace_dir(namespace, repo_root) / "memory.db"
 
 
 # ----------------------------------------------------------------------
@@ -106,3 +108,22 @@ async def append_turn(
     await asyncio.to_thread(
         _append_sync, db_path, session_id, turn_id, role, content
     )
+
+
+def _latest_session_sync(db_path) -> str | None:
+    if not Path(db_path).exists():
+        return None
+    with sqlite3.connect(db_path) as conn:
+        if conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='turns'"
+        ).fetchone() is None:
+            return None
+        row = conn.execute(
+            "SELECT session_id FROM turns ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    return row[0] if row else None
+
+
+async def latest_session(db_path) -> str | None:
+    """The most recent session_id (for ``agentos resume``), or None if no turns yet."""
+    return await asyncio.to_thread(_latest_session_sync, db_path)
