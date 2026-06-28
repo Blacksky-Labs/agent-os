@@ -107,3 +107,41 @@ notarize with your Apple Developer ID (you have the account):
    clean-Gatekeeper layer on top.
 
 Nothing about §1–§3 changes when you do this — a notarized build is a strict superset.
+
+---
+
+## 5. Publish under the Blacksky-Labs org (GitHub Releases + Pages)
+
+`publish-update.sh` ships an update entirely on GitHub — no separate server:
+
+- the **DMG** becomes a Release asset on `Blacksky-Labs/agent-os` (tag `v<version>`)
+- the **appcast** is committed to `docs/appcast.xml` and served by **GitHub Pages**
+- pushing the `v<version>` tag triggers `.github/workflows/deploy-pages.yml`, which
+  deploys `docs/` — so the feed goes live with each release
+
+One-time setup:
+
+1. `brew install gh && gh auth login` (repo scope).
+2. Repo **Settings → Pages → Source: GitHub Actions** (turns on the deploy workflow).
+3. Repo must be **public** — Sparkle fetches the asset + feed without auth. (Private
+   repo? Host the feed on `updates.blacksky.org` instead and point `SUFeedURL` there.)
+4. `SUFeedURL` is already set to `https://blacksky-labs.github.io/agent-os/appcast.xml`.
+
+Each release:
+
+```bash
+cd clients
+# bump MARKETING_VERSION AND CURRENT_PROJECT_VERSION in project.yml first
+./build-local.sh        # build the app (Sparkle key must be set — §1)
+./publish-update.sh     # DMG → sign → appcast → GitHub Release + Pages feed
+```
+
+Installed copies pick it up on their next check (`SUScheduledCheckInterval`, once
+`SUEnableAutomaticChecks: true`) or via **Check for Updates…**. Note: a build's
+`SUFeedURL` is baked in, so only builds from §5 onward watch the org feed — the old
+localhost-fed 0.1.1 won't migrate itself.
+
+> Fully hands-off CI (push a tag → build + sign + release in Actions) needs a
+> **macOS runner** plus the EdDSA private key as a repo secret; deferred — the
+> build + signing live on your Mac for now.
+

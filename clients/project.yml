@@ -65,7 +65,7 @@ targets:
           NSAllowsLocalNetworking: true
         # Sparkle — wired but inert locally (no SUPublicEDKey). Set the key + flip
         # SUEnableAutomaticChecks on at release time; the Updater stays quiet until then.
-        SUFeedURL: http://localhost:8000/appcast.xml   # LOCAL TEST — prod: https://updates.blacksky.org/skipper/appcast.xml
+        SUFeedURL: https://blacksky-labs.github.io/agent-os/appcast.xml   # org Pages feed (publish via clients/publish-update.sh). Swap to updates.blacksky.org if you wire a custom domain.
         SUPublicEDKey: "jA8sQKcor7X4nJ5jVMIxRGVdXUsb6ZlFHwK1pVoB6ko="
         SUEnableAutomaticChecks: false   # using "Check for Updates…" for the test; flip true for prod
         SUScheduledCheckInterval: 86400
